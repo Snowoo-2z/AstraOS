@@ -22,3 +22,10 @@ Installe les outils requis sur ton système Linux / WSL :
 ```bash
 sudo apt update
 sudo apt install -y nasm qemu-system-x86
+
+
+--- 
+
+Couleur du future OS : 
+
+Noir, et un accent blanc.
