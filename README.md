@@ -54,7 +54,7 @@ make run-headless
 
 ## ✅ État actuel
 
-AstraOS **0.0.3 Forge** démarre maintenant avec :
+AstraOS **0.0.4 Vector** démarre maintenant avec :
 
 - un **bootloader 16-bit** de 512 octets ;
 - un passage en **32-bit protected mode** ;
@@ -63,12 +63,15 @@ AstraOS **0.0.3 Forge** démarre maintenant avec :
 - une sortie série pour le mode headless ;
 - un clavier **FR AZERTY** par défaut, avec option US QWERTY ;
 - un vrai flux clavier via **IRQ1** + buffer circulaire ;
-- une **IDT** minimale ;
+- une **IDT** minimale avec handlers dédiés pour les 32 exceptions CPU ;
 - un **PIC** remappé ;
 - un timer **PIT 100 Hz** ;
 - une boucle d'attente avec `HLT` pour éviter de brûler du CPU ;
 - une détection mémoire BIOS **E820** ;
+- une pagination 32-bit avec identity-map des premiers **4 MiB** ;
 - un mini allocateur mémoire type **bump allocator** ;
+- un mini système de fichiers RAM en lecture seule ;
+- un assistant `ai` local basé sur des règles ;
 - des infos CPU via **CPUID** ;
 - un petit shell interactif.
 
@@ -81,11 +84,18 @@ version
 uptime
 mem
 mmap
+paging
+status
 heap
 alloc
 cpu
 irq
+ls
+cat readme
+echo hello
 ai
+ai mem
+ai fichiers
 kbd
 kbd fr
 kbd us
@@ -115,7 +125,7 @@ make run QEMU_KEYBOARD=en-us
 
 ### Timer, interruptions, mémoire
 
-Le noyau installe maintenant une IDT, remappe le PIC, configure le PIT à environ 100 Hz et utilise IRQ1 pour le clavier.
+Le noyau installe maintenant une IDT, remappe le PIC, configure le PIT à environ 100 Hz, utilise IRQ1 pour le clavier et active une pagination identity-map des premiers 4 MiB.
 
 Dans AstraOS :
 
@@ -125,8 +135,13 @@ irq      Affiche les compteurs d'interruptions
 cpu      Affiche le vendor CPUID et les flags CPU
 mem      Affiche RAM utilisable + état du heap
 mmap     Affiche la carte mémoire BIOS E820
+paging   Affiche CR0/CR3 + tables de pages
+status   Résumé rapide du système
 heap     Affiche l'allocateur mémoire minimal
 alloc    Alloue un bloc de test de 256 octets
+ls       Liste les fichiers RAM intégrés
+cat NAME Affiche un fichier RAM
+ai mem   Suggère des commandes selon un sujet
 ```
 
 `alloc` n'est pas encore un malloc complet : c'est une première base de gestion mémoire, volontairement simple et prévisible.
@@ -201,14 +216,18 @@ Donc la base actuelle est volontairement simple, rapide et compréhensible.
 - [x] Timer système PIT 100 Hz
 - [x] Pilote clavier par interruptions IRQ1
 - [x] Détection mémoire BIOS/E820
+- [x] Pagination 32-bit identity-map 4 MiB
 - [x] Allocateur mémoire simple
-- [ ] IDT avec handlers dédiés par exception
+- [x] Mini système de fichiers RAM intégré
+- [x] Assistant local de commandes AstraAI
+- [x] IDT avec handlers dédiés par exception
 - [ ] Gestion mémoire plus complète
 
 ### Phase 3 — Stockage et fichiers
 
 - [ ] Lecture disque plus robuste
-- [ ] Système de fichiers minimal
+- [x] Système de fichiers RAM minimal
+- [ ] Système de fichiers disque minimal
 - [ ] Chargement de fichiers/programmes
 
 ### Phase 4 — Sécurité et comptes

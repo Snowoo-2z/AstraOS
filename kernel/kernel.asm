@@ -26,6 +26,7 @@ DATA_SEG     equ 0x10
 
 IDT_ENTRIES      equ 256
 IDT_FLAGS        equ 0x8E
+PAGE_ENTRIES     equ 1024
 PIT_FREQUENCY_HZ equ 100
 PIT_DIVISOR      equ 11932
 
@@ -52,6 +53,7 @@ kernel_entry:
     mov esp, 0x90000
 
     call serial_init
+    call setup_paging
     call setup_interrupts
     call clear_screen
 
@@ -199,6 +201,32 @@ execute_command:
     cmp eax, 1
     je .mmap
 
+    mov esi, input_buffer
+    mov edi, cmd_paging
+    call string_equals
+    cmp eax, 1
+    je .paging
+
+    mov esi, input_buffer
+    mov edi, cmd_status
+    call string_equals
+    cmp eax, 1
+    je .status
+
+    mov esi, input_buffer
+    mov edi, cmd_ls
+    call string_equals
+    cmp eax, 1
+    je .ls
+
+    call is_cat_command
+    cmp eax, 1
+    je .cat
+
+    call is_echo_command
+    cmp eax, 1
+    je .echo
+
     call is_kbd_command
     cmp eax, 1
     je .kbd
@@ -264,13 +292,32 @@ execute_command:
     call print_memory_map
     jmp .done
 
+.paging:
+    call print_paging_info
+    jmp .done
+
+.status:
+    call print_status_info
+    jmp .done
+
+.ls:
+    call print_file_list
+    jmp .done
+
+.cat:
+    call execute_cat_command
+    jmp .done
+
+.echo:
+    call execute_echo_command
+    jmp .done
+
 .kbd:
     call execute_kbd_command
     jmp .done
 
 .ai:
-    mov esi, ai_text
-    call print_string
+    call execute_ai_command
 
 .done:
     ret
@@ -339,6 +386,207 @@ is_kbd_command:
     mov eax, 1
     ret
 
+is_cat_command:
+    cmp byte [input_buffer], 'c'
+    jne .no
+    cmp byte [input_buffer + 1], 'a'
+    jne .no
+    cmp byte [input_buffer + 2], 't'
+    jne .no
+    mov al, [input_buffer + 3]
+    cmp al, 0
+    je .yes
+    cmp al, ' '
+    je .yes
+.no:
+    xor eax, eax
+    ret
+.yes:
+    mov eax, 1
+    ret
+
+is_echo_command:
+    cmp byte [input_buffer], 'e'
+    jne .no
+    cmp byte [input_buffer + 1], 'c'
+    jne .no
+    cmp byte [input_buffer + 2], 'h'
+    jne .no
+    cmp byte [input_buffer + 3], 'o'
+    jne .no
+    mov al, [input_buffer + 4]
+    cmp al, 0
+    je .yes
+    cmp al, ' '
+    je .yes
+.no:
+    xor eax, eax
+    ret
+.yes:
+    mov eax, 1
+    ret
+
+execute_cat_command:
+    cmp byte [input_buffer + 3], ' '
+    jne .usage
+
+    mov esi, input_buffer + 4
+    mov edi, fs_name_readme
+    call string_equals
+    cmp eax, 1
+    je .readme
+
+    mov esi, input_buffer + 4
+    mov edi, fs_name_roadmap
+    call string_equals
+    cmp eax, 1
+    je .roadmap
+
+    mov esi, input_buffer + 4
+    mov edi, fs_name_ai
+    call string_equals
+    cmp eax, 1
+    je .ai
+
+    mov esi, input_buffer + 4
+    mov edi, fs_name_license
+    call string_equals
+    cmp eax, 1
+    je .license
+
+    mov esi, cat_not_found_text
+    call print_string
+    ret
+
+.readme:
+    mov esi, fs_readme_text
+    call print_string
+    ret
+.roadmap:
+    mov esi, fs_roadmap_text
+    call print_string
+    ret
+.ai:
+    mov esi, fs_ai_text
+    call print_string
+    ret
+.license:
+    mov esi, fs_license_text
+    call print_string
+    ret
+.usage:
+    mov esi, cat_usage_text
+    call print_string
+    ret
+
+execute_echo_command:
+    cmp byte [input_buffer + 4], 0
+    je .newline
+    cmp byte [input_buffer + 4], ' '
+    jne .usage
+    mov esi, input_buffer + 5
+    call print_string
+.newline:
+    call print_newline
+    ret
+.usage:
+    mov esi, echo_usage_text
+    call print_string
+    ret
+
+execute_ai_command:
+    cmp byte [input_buffer + 2], 0
+    je .intro
+    cmp byte [input_buffer + 2], ' '
+    jne .intro
+
+    mov esi, input_buffer + 3
+    mov edi, ai_arg_mem
+    call string_equals
+    cmp eax, 1
+    je .mem
+
+    mov esi, input_buffer + 3
+    mov edi, ai_arg_memoire
+    call string_equals
+    cmp eax, 1
+    je .mem
+
+    mov esi, input_buffer + 3
+    mov edi, ai_arg_files
+    call string_equals
+    cmp eax, 1
+    je .files
+
+    mov esi, input_buffer + 3
+    mov edi, ai_arg_fichiers
+    call string_equals
+    cmp eax, 1
+    je .files
+
+    mov esi, input_buffer + 3
+    mov edi, ai_arg_clavier
+    call string_equals
+    cmp eax, 1
+    je .kbd
+
+    mov esi, input_buffer + 3
+    mov edi, ai_arg_kbd
+    call string_equals
+    cmp eax, 1
+    je .kbd
+
+    mov esi, input_buffer + 3
+    mov edi, ai_arg_cpu
+    call string_equals
+    cmp eax, 1
+    je .cpu
+
+    mov esi, input_buffer + 3
+    mov edi, ai_arg_irq
+    call string_equals
+    cmp eax, 1
+    je .irq
+
+    mov esi, input_buffer + 3
+    mov edi, ai_arg_heap
+    call string_equals
+    cmp eax, 1
+    je .heap
+
+    mov esi, ai_unknown_text
+    call print_string
+    ret
+
+.intro:
+    mov esi, ai_text
+    call print_string
+    ret
+.mem:
+    mov esi, ai_mem_text
+    call print_string
+    ret
+.files:
+    mov esi, ai_files_text
+    call print_string
+    ret
+.kbd:
+    mov esi, ai_kbd_text
+    call print_string
+    ret
+.cpu:
+    mov esi, ai_cpu_text
+    call print_string
+    ret
+.irq:
+    mov esi, ai_irq_text
+    call print_string
+    ret
+.heap:
+    mov esi, ai_heap_text
+    call print_string
+    ret
+
 execute_kbd_command:
     cmp byte [input_buffer + 3], 0
     je .show
@@ -386,6 +634,45 @@ execute_kbd_command:
     ret
 
 ; ------------------------------------------------------------
+; Paging: identity-map the first 4 MiB.
+; ------------------------------------------------------------
+setup_paging:
+    pusha
+
+    mov edi, page_directory
+    mov ecx, PAGE_ENTRIES
+    xor eax, eax
+    rep stosd
+
+    mov edi, page_table0
+    xor ebx, ebx
+    mov ecx, PAGE_ENTRIES
+
+.fill_table:
+    mov eax, ebx
+    or eax, 0x003           ; present + writable
+    mov [edi], eax
+    add ebx, 4096
+    add edi, 4
+    loop .fill_table
+
+    mov eax, page_table0
+    or eax, 0x003
+    mov [page_directory], eax
+
+    mov eax, page_directory
+    mov cr3, eax
+    mov eax, cr0
+    or eax, 0x80000000      ; enable paging
+    mov cr0, eax
+    jmp .flush
+
+.flush:
+    mov dword [paging_enabled], 1
+    popa
+    ret
+
+; ------------------------------------------------------------
 ; Interrupt Descriptor Table + timer IRQ
 ; ------------------------------------------------------------
 setup_interrupts:
@@ -413,7 +700,7 @@ setup_idt:
 
     xor ebx, ebx
 .exception_entries:
-    mov eax, isr_exception
+    mov eax, [exception_handlers + ebx * 4]
     call set_idt_entry
     inc ebx
     cmp ebx, 32
@@ -532,10 +819,29 @@ isr_default:
     popa
     iretd
 
-isr_exception:
+%macro ISR_EXCEPTION 1
+isr_exception_%1:
     cli
+    push dword %1
+    jmp exception_common
+%endmacro
+
+%assign exception_index 0
+%rep 32
+ISR_EXCEPTION exception_index
+%assign exception_index exception_index + 1
+%endrep
+
+exception_common:
     pusha
     mov esi, exception_text
+    call print_string
+    mov esi, exception_vector_text
+    call print_string
+    mov eax, [esp + 32]
+    call print_dec
+    call print_newline
+    mov esi, exception_hint_text
     call print_string
     popa
 .halt:
@@ -1115,6 +1421,102 @@ print_memory_map:
     popa
     ret
 
+print_paging_info:
+    pusha
+    mov esi, paging_header_text
+    call print_string
+
+    mov esi, paging_state_text
+    call print_string
+    cmp dword [paging_enabled], 1
+    je .enabled
+    mov esi, off_text
+    call print_string
+    jmp .state_done
+.enabled:
+    mov esi, on_text
+    call print_string
+.state_done:
+    call print_newline
+
+    mov esi, paging_cr0_text
+    call print_string
+    mov eax, cr0
+    call print_hex32
+    call print_newline
+
+    mov esi, paging_cr3_text
+    call print_string
+    mov eax, cr3
+    call print_hex32
+    call print_newline
+
+    mov esi, paging_dir_text
+    call print_string
+    mov eax, page_directory
+    call print_hex32
+    call print_newline
+
+    mov esi, paging_table_text
+    call print_string
+    mov eax, page_table0
+    call print_hex32
+    call print_newline
+    call print_newline
+    popa
+    ret
+
+print_status_info:
+    pusha
+    mov esi, status_header_text
+    call print_string
+
+    mov esi, status_version_text
+    call print_string
+    mov esi, version_text
+    call print_string
+
+    mov esi, status_ticks_text
+    call print_string
+    mov eax, [timer_ticks]
+    call print_dec
+    call print_newline
+
+    mov esi, status_e820_text
+    call print_string
+    movzx eax, word [MEMORY_MAP_COUNT]
+    call print_dec
+    call print_newline
+
+    mov esi, status_heap_next_text
+    call print_string
+    mov eax, [heap_next]
+    call print_hex32
+    call print_newline
+
+    mov esi, status_paging_text
+    call print_string
+    cmp dword [paging_enabled], 1
+    je .paging_on
+    mov esi, off_text
+    call print_string
+    jmp .done_paging
+.paging_on:
+    mov esi, on_text
+    call print_string
+.done_paging:
+    call print_newline
+    call print_newline
+    popa
+    ret
+
+print_file_list:
+    pusha
+    mov esi, fs_list_text
+    call print_string
+    popa
+    ret
+
 put_char:
     pusha
     mov [current_char], al
@@ -1240,6 +1642,7 @@ input_len dd 0
 timer_ticks dd 0
 keyboard_irq_count dd 0
 keyboard_char_count dd 0
+paging_enabled dd 0
 heap_next dd HEAP_START
 temp_value dd 0
 mmap_index dd 0
@@ -1268,10 +1671,13 @@ cmd_irq     db 'irq', 0
 cmd_heap    db 'heap', 0
 cmd_alloc   db 'alloc', 0
 cmd_mmap    db 'mmap', 0
+cmd_paging  db 'paging', 0
+cmd_status  db 'status', 0
+cmd_ls      db 'ls', 0
 
 banner:
     db '========================================', 10
-    db ' AstraOS 0.0.3 Forge', 10
+    db ' AstraOS 0.0.4 Vector', 10
     db ' 32-bit protected mode kernel', 10
     db ' Open source MIT - black and white', 10
     db ' Keyboard: IRQ1 FR AZERTY by default', 10
@@ -1290,11 +1696,16 @@ help_text:
     db '  uptime   Show timer ticks since boot', 10
     db '  mem      Show memory and heap info', 10
     db '  mmap     Show BIOS E820 memory map', 10
+    db '  paging   Show paging/CR3 info', 10
+    db '  status   Show compact system status', 10
     db '  heap     Show tiny bump allocator state', 10
     db '  alloc    Allocate a 256-byte demo block', 10
     db '  cpu      Show CPUID vendor/features', 10
     db '  irq      Show interrupt counters', 10
-    db '  ai       Local AI concept stub', 10
+    db '  ls       List RAM files', 10
+    db '  cat NAME Print a RAM file', 10
+    db '  echo TXT Print text', 10
+    db '  ai       Local AI helper', 10
     db '  kbd      Show keyboard layout', 10
     db '  kbd fr   Switch to French AZERTY', 10
     db '  kbd us   Switch to US QWERTY', 10
@@ -1307,13 +1718,14 @@ about_text:
     db 'protected mode, starts IRQ-driven input, a timer, memory map,', 10
     db 'and a tiny shell. Goal: light in RAM, modular, AI-ready.', 10, 10, 0
 
-version_text db 'AstraOS 0.0.3 Forge - kernel32', 10, 10, 0
+version_text db 'AstraOS 0.0.4 Vector - kernel32', 10, 10, 0
 
 mem_header_text db 'Memory status:', 10, 0
 mem_mode_text:
     db '  CPU mode : 32-bit protected mode', 10
     db '  Timer    : PIT IRQ0 at 100 Hz', 10
     db '  Keyboard : IRQ1 ring buffer', 10
+    db '  Paging   : identity map first 4 MiB', 10
     db '  Idle     : HLT sleep between IRQs', 10
     db '  Kernel   : fixed low-memory image loaded at 0x10000', 10, 0
 mem_map_count_text db '  E820 entries : ', 0
@@ -1330,17 +1742,52 @@ kib_suffix_text db ' KiB', 10, 0
 alloc_ok_text db 'Allocated 256 bytes at ', 0
 alloc_fail_text db 'Heap allocation failed: no space left.', 10, 10, 0
 hex_prefix db '0x', 0
+on_text db 'on', 0
+off_text db 'off', 0
+paging_header_text db 'Paging status:', 10, 0
+paging_state_text db '  state : ', 0
+paging_cr0_text db '  CR0   : ', 0
+paging_cr3_text db '  CR3   : ', 0
+paging_dir_text db '  dir   : ', 0
+paging_table_text db '  table : ', 0
+status_header_text db 'System status:', 10, 0
+status_version_text db '  version : ', 0
+status_ticks_text db '  ticks   : ', 0
+status_e820_text db '  e820    : ', 0
+status_heap_next_text db '  heap    : ', 0
+status_paging_text db '  paging  : ', 0
+cat_usage_text db 'Usage: cat readme|roadmap|ai|license', 10, 10, 0
+cat_not_found_text db 'File not found. Type ls.', 10, 10, 0
+echo_usage_text db 'Usage: echo text', 10, 10, 0
 
 ai_text:
     db 'AstraAI local stub online.', 10
     db 'I am still rule-based: no wasted RAM, no cloud dependency.', 10
     db 'Kernel data available now: uptime, cpu, irq, mem, mmap, heap.', 10
-    db 'Next: intent parser that suggests real shell commands.', 10, 10, 0
+    db 'Try: ai mem, ai fichiers, ai clavier, ai cpu, ai irq, ai heap.', 10, 10, 0
+ai_arg_mem db 'mem', 0
+ai_arg_memoire db 'memoire', 0
+ai_arg_files db 'files', 0
+ai_arg_fichiers db 'fichiers', 0
+ai_arg_clavier db 'clavier', 0
+ai_arg_kbd db 'kbd', 0
+ai_arg_cpu db 'cpu', 0
+ai_arg_irq db 'irq', 0
+ai_arg_heap db 'heap', 0
+ai_mem_text db 'AstraAI: utilise mem pour le resume, mmap pour la carte BIOS, heap pour l allocateur.', 10, 10, 0
+ai_files_text db 'AstraAI: utilise ls pour voir les fichiers RAM, puis cat readme ou cat roadmap.', 10, 10, 0
+ai_kbd_text db 'AstraAI: le clavier est en IRQ1. Utilise kbd, kbd fr, ou kbd us.', 10, 10, 0
+ai_cpu_text db 'AstraAI: utilise cpu pour CPUID et paging pour CR0/CR3.', 10, 10, 0
+ai_irq_text db 'AstraAI: utilise irq pour les compteurs et uptime pour le timer.', 10, 10, 0
+ai_heap_text db 'AstraAI: utilise heap pour l etat, alloc pour reserver 256 octets de test.', 10, 10, 0
+ai_unknown_text db 'AstraAI: je connais surtout mem, fichiers, clavier, cpu, irq, heap pour le moment.', 10, 10, 0
 
 uptime_prefix db 'Uptime: ', 0
 uptime_seconds_text db 's (ticks: ', 0
 uptime_ticks_suffix db ')', 10, 10, 0
-exception_text db 'AstraOS kernel panic: CPU exception. System halted.', 10, 0
+exception_text db 'AstraOS kernel panic: CPU exception.', 10, 0
+exception_vector_text db '  vector: ', 0
+exception_hint_text db 'System halted to protect the kernel.', 10, 0
 
 cpu_header_text db 'CPU info:', 10, 0
 cpu_vendor_text db '  vendor       : ', 0
@@ -1364,6 +1811,30 @@ kbd_current_us_text db 'Keyboard layout: US QWERTY. Use kbd fr to switch.', 10, 
 kbd_set_fr_text db 'Keyboard switched to FR AZERTY.', 10, 10, 0
 kbd_set_us_text db 'Keyboard switched to US QWERTY.', 10, 10, 0
 kbd_usage_text db 'Usage: kbd, kbd fr, or kbd us.', 10, 10, 0
+
+fs_name_readme db 'readme', 0
+fs_name_roadmap db 'roadmap', 0
+fs_name_ai db 'ai', 0
+fs_name_license db 'license', 0
+fs_list_text:
+    db 'RAM files:', 10
+    db '  readme', 10
+    db '  roadmap', 10
+    db '  ai', 10
+    db '  license', 10, 10, 0
+fs_readme_text:
+    db 'readme:', 10
+    db '  AstraOS is a tiny 32-bit OS base: bootloader, protected mode,', 10
+    db '  IDT, PIC, PIT, IRQ keyboard, paging, E820 memory, heap, ramfs.', 10, 10, 0
+fs_roadmap_text:
+    db 'roadmap:', 10
+    db '  next: stronger exceptions, real filesystem on disk, programs,', 10
+    db '  user/kernel separation, then accounts and a smarter AstraAI.', 10, 10, 0
+fs_ai_text:
+    db 'ai:', 10
+    db '  AstraAI starts as a local rule helper so the kernel stays tiny.', 10
+    db '  It suggests commands without loading a heavy model by default.', 10, 10, 0
+fs_license_text db 'license: MIT open source.', 10, 10, 0
 
 unknown_text db 'Unknown command. Type help.', 10, 10, 0
 reboot_text db 'Rebooting AstraOS...', 10, 0
@@ -1425,3 +1896,18 @@ idt times IDT_ENTRIES * 8 db 0
 idt_descriptor:
     dw IDT_ENTRIES * 8 - 1
     dd idt
+
+exception_handlers:
+    dd isr_exception_0, isr_exception_1, isr_exception_2, isr_exception_3
+    dd isr_exception_4, isr_exception_5, isr_exception_6, isr_exception_7
+    dd isr_exception_8, isr_exception_9, isr_exception_10, isr_exception_11
+    dd isr_exception_12, isr_exception_13, isr_exception_14, isr_exception_15
+    dd isr_exception_16, isr_exception_17, isr_exception_18, isr_exception_19
+    dd isr_exception_20, isr_exception_21, isr_exception_22, isr_exception_23
+    dd isr_exception_24, isr_exception_25, isr_exception_26, isr_exception_27
+    dd isr_exception_28, isr_exception_29, isr_exception_30, isr_exception_31
+
+; Paging structures are part of the kernel image and identity-mapped.
+align 4096
+page_directory times PAGE_ENTRIES dd 0
+page_table0 times PAGE_ENTRIES dd 0

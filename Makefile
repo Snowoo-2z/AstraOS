@@ -14,7 +14,7 @@ IMAGE := $(BUILD_DIR)/astraos.img
 
 # The bootloader reads this many sectors after the boot sector.
 # Keep it intentionally generous for the tiny kernel and fail if we outgrow it.
-KERNEL_SECTORS := 64
+KERNEL_SECTORS := 128
 FLOPPY_SECTORS := 2880
 FLOPPY_SIZE := 1474560
 
