@@ -10,6 +10,22 @@ Licence : **MIT**. Dépôt public : <https://github.com/Snowoo-2z/AstraOS>
 
 ## 🚀 Lancement en une ligne
 
+### Tester cette branche Arena
+
+Tant que la Pull Request n'est pas encore mergée dans `main`, utilise cette commande pour cloner et lancer **la branche de test** :
+
+```bash
+git clone --branch arena/01a10607-astraos --single-branch https://github.com/Snowoo-2z/AstraOS.git && cd AstraOS && sudo apt update && sudo apt install -y make nasm qemu-system-x86 && make run
+```
+
+Version WSL2 / SSH / environnement sans interface graphique :
+
+```bash
+git clone --branch arena/01a10607-astraos --single-branch https://github.com/Snowoo-2z/AstraOS.git && cd AstraOS && sudo apt update && sudo apt install -y make nasm qemu-system-x86 && make run-headless
+```
+
+### Après merge dans `main`
+
 Sur Ubuntu / Debian avec interface graphique :
 
 ```bash
