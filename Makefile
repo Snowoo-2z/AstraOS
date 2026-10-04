@@ -4,6 +4,8 @@
 ASM ?= nasm
 QEMU ?= qemu-system-i386
 QEMU_KEYBOARD ?= fr
+QEMU_DISPLAY ?= gtk,show-cursor=off
+QEMU_DISPLAY_FLAGS := $(if $(QEMU_DISPLAY),-display $(QEMU_DISPLAY),)
 QEMU_FLAGS ?= -no-reboot -no-shutdown
 
 BUILD_DIR := build
@@ -15,7 +17,7 @@ IMAGE := $(BUILD_DIR)/astraos.img
 
 # The bootloader reads this many sectors after the boot sector.
 # Keep it intentionally generous for the tiny kernel and fail if we outgrow it.
-KERNEL_SECTORS := 192
+KERNEL_SECTORS := 256
 FLOPPY_SECTORS := 2880
 FLOPPY_SIZE := 1474560
 
@@ -49,7 +51,7 @@ $(IMAGE): $(BOOT_BIN) $(KERNEL_BIN)
 	@echo "Kernel size: $$(wc -c < $(KERNEL_BIN)) bytes / $$(( $(KERNEL_SECTORS) * 512 )) bytes loaded."
 
 run: doctor $(IMAGE)
-	$(QEMU) -drive file=$(IMAGE),format=raw,if=floppy -boot a -m 32M -k $(QEMU_KEYBOARD) $(QEMU_FLAGS)
+	$(QEMU) -drive file=$(IMAGE),format=raw,if=floppy -boot a -m 32M -k $(QEMU_KEYBOARD) $(QEMU_DISPLAY_FLAGS) $(QEMU_FLAGS)
 
 # Useful on WSL/SSH/no-GUI machines. Output is mirrored to serial and input works over serial.
 run-headless: doctor $(IMAGE)

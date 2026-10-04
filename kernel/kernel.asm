@@ -41,8 +41,10 @@ KEYBOARD_LAYOUT_FR equ 0
 KEYBOARD_LAYOUT_US equ 1
 FILE_COUNT equ 4
 FILE_LIST_START_ROW equ 6
-MOUSE_MAX_X equ 319
-MOUSE_MAX_Y equ 199
+MOUSE_MAX_X equ 312
+MOUSE_MAX_Y equ 190
+GUI_VRAM equ 0xA0000
+GUI_BACKBUFFER equ 0x300000
 
 kernel_entry:
     cli
@@ -1903,7 +1905,8 @@ gui_update_hover:
 
 gui_render_desktop:
     pusha
-    mov byte [rect_color], 1
+    mov dword [gfx_target], GUI_BACKBUFFER
+    mov byte [rect_color], 0
     mov dword [rect_x], 0
     mov dword [rect_y], 0
     mov dword [rect_w], 320
@@ -1923,7 +1926,7 @@ gui_render_desktop:
     mov dl, 15
     call gfx_draw_text
 
-    mov byte [rect_color], 7
+    mov byte [rect_color], 15
     mov dword [rect_x], 10
     mov dword [rect_y], 28
     mov dword [rect_w], 300
@@ -1968,6 +1971,7 @@ gui_render_desktop:
     call gfx_draw_text
 
     call gfx_draw_cursor
+    call gfx_present
     popa
     ret
 
@@ -1999,10 +2003,10 @@ gfx_draw_file_icon:
     mov [gui_icon_y], ecx
     mov [gui_icon_label], esi
 
-    mov byte [rect_color], 14
+    mov byte [rect_color], 7
     cmp al, [gui_hover]
     jne .color_ok
-    mov byte [rect_color], 11
+    mov byte [rect_color], 15
 .color_ok:
     mov eax, [gui_icon_x]
     mov [rect_x], eax
@@ -2012,7 +2016,7 @@ gfx_draw_file_icon:
     mov dword [rect_h], 32
     call gfx_fill_rect
 
-    mov byte [rect_color], 6
+    mov byte [rect_color], 8
     mov eax, [gui_icon_x]
     add eax, 4
     mov [rect_x], eax
@@ -2072,21 +2076,22 @@ gui_open_hovered_file:
 
 gui_render_viewer:
     pusha
-    mov byte [rect_color], 1
+    mov dword [gfx_target], GUI_BACKBUFFER
+    mov byte [rect_color], 0
     mov dword [rect_x], 0
     mov dword [rect_y], 0
     mov dword [rect_w], 320
     mov dword [rect_h], 200
     call gfx_fill_rect
 
-    mov byte [rect_color], 7
+    mov byte [rect_color], 15
     mov dword [rect_x], 16
     mov dword [rect_y], 18
     mov dword [rect_w], 288
     mov dword [rect_h], 164
     call gfx_fill_rect
 
-    mov byte [rect_color], 9
+    mov byte [rect_color], 8
     mov dword [rect_x], 16
     mov dword [rect_y], 18
     mov dword [rect_w], 288
@@ -2166,6 +2171,7 @@ gui_render_viewer:
     mov dl, 0
     call gfx_draw_text
     call gfx_draw_cursor
+    call gfx_present
     popa
     ret
 
@@ -2270,7 +2276,7 @@ gfx_fill_rect:
     add eax, [rect_row]
     imul eax, 320
     add eax, [rect_x]
-    mov edi, 0xA0000
+    mov edi, [gfx_target]
     add edi, eax
     mov ecx, [rect_w]
     mov al, [rect_color]
@@ -2282,25 +2288,46 @@ gfx_fill_rect:
     popa
     ret
 
+gfx_present:
+    pusha
+    mov esi, GUI_BACKBUFFER
+    mov edi, GUI_VRAM
+    mov ecx, 16000          ; 320 * 200 / 4
+    rep movsd
+    popa
+    ret
+
 gfx_draw_cursor:
     pusha
+    ; Simple software arrow. Drawn into the backbuffer before presenting.
     mov byte [rect_color], 15
+    mov dword [glyph_row], 0
+.arrow_row:
+    cmp dword [glyph_row], 8
+    jae .tail
     mov eax, [mouse_x]
     mov [rect_x], eax
     mov eax, [mouse_y]
+    add eax, [glyph_row]
     mov [rect_y], eax
-    mov dword [rect_w], 5
-    mov dword [rect_h], 5
+    mov eax, [glyph_row]
+    inc eax
+    mov [rect_w], eax
+    mov dword [rect_h], 1
     call gfx_fill_rect
+    inc dword [glyph_row]
+    jmp .arrow_row
+
+.tail:
     mov byte [rect_color], 0
     mov eax, [mouse_x]
     add eax, 1
     mov [rect_x], eax
     mov eax, [mouse_y]
-    add eax, 1
+    add eax, 2
     mov [rect_y], eax
-    mov dword [rect_w], 3
-    mov dword [rect_h], 3
+    mov dword [rect_w], 1
+    mov dword [rect_h], 5
     call gfx_fill_rect
     popa
     ret
@@ -2413,7 +2440,7 @@ gfx_draw_char:
     jae .next_row
     mov ebx, [glyph_col]
     mov al, [font_masks + ebx]
-    test [glyph_bits], al
+    test byte [glyph_bits], al
     jz .skip_pixel
 
     mov eax, [glyph_y]
@@ -2421,7 +2448,7 @@ gfx_draw_char:
     imul eax, 320
     add eax, [glyph_x]
     add eax, [glyph_col]
-    mov edi, 0xA0000
+    mov edi, [gfx_target]
     add edi, eax
     mov al, [glyph_color]
     mov [edi], al
@@ -2826,6 +2853,7 @@ temp_value dd 0
 mmap_index dd 0
 mmap_remaining dd 0
 mmap_ptr dd 0
+gfx_target dd GUI_BACKBUFFER
 rect_x dd 0
 rect_y dd 0
 rect_w dd 0
