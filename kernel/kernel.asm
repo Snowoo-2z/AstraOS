@@ -10,6 +10,16 @@ VGA_WIDTH    equ 80
 VGA_HEIGHT   equ 25
 VGA_ATTR     equ 0x0F          ; white on black
 INPUT_MAX    equ 96
+KBD_BUFFER_SIZE equ 32
+
+MEMORY_MAP_COUNT   equ 0x8000
+MEMORY_MAP_ENTRIES equ 0x8004
+E820_ENTRY_SIZE    equ 24
+
+HEAP_START equ 0x200000
+HEAP_SIZE  equ 0x100000
+HEAP_END   equ HEAP_START + HEAP_SIZE
+
 COM1         equ 0x3F8
 CODE_SEG     equ 0x08
 DATA_SEG     equ 0x10
@@ -159,6 +169,36 @@ execute_command:
     cmp eax, 1
     je .uptime
 
+    mov esi, input_buffer
+    mov edi, cmd_cpu
+    call string_equals
+    cmp eax, 1
+    je .cpu
+
+    mov esi, input_buffer
+    mov edi, cmd_irq
+    call string_equals
+    cmp eax, 1
+    je .irq
+
+    mov esi, input_buffer
+    mov edi, cmd_heap
+    call string_equals
+    cmp eax, 1
+    je .heap
+
+    mov esi, input_buffer
+    mov edi, cmd_alloc
+    call string_equals
+    cmp eax, 1
+    je .alloc
+
+    mov esi, input_buffer
+    mov edi, cmd_mmap
+    call string_equals
+    cmp eax, 1
+    je .mmap
+
     call is_kbd_command
     cmp eax, 1
     je .kbd
@@ -192,8 +232,7 @@ execute_command:
     jmp .done
 
 .mem:
-    mov esi, mem_text
-    call print_string
+    call print_memory_info
     jmp .done
 
 .version:
@@ -203,6 +242,26 @@ execute_command:
 
 .uptime:
     call print_uptime
+    jmp .done
+
+.cpu:
+    call print_cpu_info
+    jmp .done
+
+.irq:
+    call print_irq_info
+    jmp .done
+
+.heap:
+    call print_heap_info
+    jmp .done
+
+.alloc:
+    call allocate_demo_block
+    jmp .done
+
+.mmap:
+    call print_memory_map
     jmp .done
 
 .kbd:
@@ -364,6 +423,10 @@ setup_idt:
     mov eax, isr_timer
     call set_idt_entry
 
+    mov ebx, 33              ; IRQ1 keyboard after PIC remap
+    mov eax, isr_keyboard
+    call set_idt_entry
+
     lidt [idt_descriptor]
     popa
     ret
@@ -416,7 +479,7 @@ remap_pic:
     out PIC2_DATA, al
     call io_wait
 
-    mov al, 0xFE             ; unmask IRQ0 timer only
+    mov al, 0xFC             ; unmask IRQ0 timer and IRQ1 keyboard
     out PIC1_DATA, al
     mov al, 0xFF
     out PIC2_DATA, al
@@ -441,6 +504,21 @@ io_wait:
 isr_timer:
     pusha
     inc dword [timer_ticks]
+    mov al, 0x20
+    out PIC1_CMD, al
+    popa
+    iretd
+
+isr_keyboard:
+    pusha
+    inc dword [keyboard_irq_count]
+    in al, 0x60
+    call keyboard_process_scancode
+    cmp al, 0
+    je .eoi
+    inc dword [keyboard_char_count]
+    call keyboard_buffer_push
+.eoi:
     mov al, 0x20
     out PIC1_CMD, al
     popa
@@ -484,7 +562,7 @@ read_char:
     cmp al, 0
     jne .done
 
-    call keyboard_read_char
+    call keyboard_buffer_pop
     cmp al, 0
     jne .done
 
@@ -494,13 +572,49 @@ read_char:
 .done:
     ret
 
-keyboard_read_char:
-    in al, 0x64
-    test al, 00000001b
-    jz .none
+keyboard_buffer_push:
+    push ebx
+    push ecx
 
-    in al, 0x60
+    xor ebx, ebx
+    mov bl, [kbd_head]
+    mov cl, bl
+    inc cl
+    and cl, KBD_BUFFER_SIZE - 1
+    cmp cl, [kbd_tail]
+    je .full
 
+    mov [kbd_buffer + ebx], al
+    mov [kbd_head], cl
+
+.full:
+    pop ecx
+    pop ebx
+    ret
+
+keyboard_buffer_pop:
+    push ebx
+
+    mov bl, [kbd_tail]
+    cmp bl, [kbd_head]
+    je .empty
+
+    xor ebx, ebx
+    mov bl, [kbd_tail]
+    mov al, [kbd_buffer + ebx]
+
+    inc bl
+    and bl, KBD_BUFFER_SIZE - 1
+    mov [kbd_tail], bl
+    jmp .done
+
+.empty:
+    xor eax, eax
+.done:
+    pop ebx
+    ret
+
+keyboard_process_scancode:
     cmp al, 0x2A       ; left shift down
     je .shift_down
     cmp al, 0x36       ; right shift down
@@ -699,6 +813,308 @@ print_dec:
     popa
     ret
 
+print_newline:
+    push eax
+    mov al, 10
+    call put_char
+    pop eax
+    ret
+
+print_hex32:
+    pusha
+    mov esi, hex_prefix
+    call print_string
+    mov ebx, eax
+    mov ecx, 8
+
+.next_nibble:
+    rol ebx, 4
+    mov al, bl
+    and al, 0x0F
+    cmp al, 9
+    jbe .digit
+    add al, 'A' - 10
+    jmp .emit
+
+.digit:
+    add al, '0'
+
+.emit:
+    call put_char
+    loop .next_nibble
+    popa
+    ret
+
+get_usable_kib:
+    push ebx
+    push ecx
+    push edx
+    push esi
+
+    xor eax, eax
+    movzx ecx, word [MEMORY_MAP_COUNT]
+    mov esi, MEMORY_MAP_ENTRIES
+
+.next_entry:
+    test ecx, ecx
+    jz .done
+    cmp dword [esi + 16], 1
+    jne .skip
+    add eax, [esi + 8]       ; length low dword, enough for the tiny VM target
+
+.skip:
+    add esi, E820_ENTRY_SIZE
+    dec ecx
+    jmp .next_entry
+
+.done:
+    shr eax, 10              ; bytes -> KiB
+    pop esi
+    pop edx
+    pop ecx
+    pop ebx
+    ret
+
+print_memory_info:
+    pusha
+    mov esi, mem_header_text
+    call print_string
+
+    mov esi, mem_mode_text
+    call print_string
+
+    mov esi, mem_map_count_text
+    call print_string
+    movzx eax, word [MEMORY_MAP_COUNT]
+    call print_dec
+    call print_newline
+
+    mov esi, mem_usable_text
+    call print_string
+    call get_usable_kib
+    mov [temp_value], eax
+    call print_dec
+    mov esi, kib_open_text
+    call print_string
+    mov eax, [temp_value]
+    shr eax, 10
+    call print_dec
+    mov esi, mib_close_text
+    call print_string
+
+    call print_heap_info
+    popa
+    ret
+
+print_heap_info:
+    pusha
+    mov esi, heap_header_text
+    call print_string
+
+    mov esi, heap_start_text
+    call print_string
+    mov eax, HEAP_START
+    call print_hex32
+    call print_newline
+
+    mov esi, heap_next_text
+    call print_string
+    mov eax, [heap_next]
+    call print_hex32
+    call print_newline
+
+    mov esi, heap_used_text
+    call print_string
+    mov eax, [heap_next]
+    sub eax, HEAP_START
+    mov [temp_value], eax
+    call print_dec
+    mov esi, bytes_text
+    call print_string
+    mov eax, [temp_value]
+    shr eax, 10
+    call print_dec
+    mov esi, kib_suffix_text
+    call print_string
+
+    mov esi, heap_free_text
+    call print_string
+    mov eax, HEAP_END
+    sub eax, [heap_next]
+    mov [temp_value], eax
+    call print_dec
+    mov esi, bytes_text
+    call print_string
+    mov eax, [temp_value]
+    shr eax, 10
+    call print_dec
+    mov esi, kib_suffix_text
+    call print_string
+
+    popa
+    ret
+
+allocate_demo_block:
+    pusha
+    mov eax, [heap_next]
+    mov ebx, eax
+    add ebx, 256
+    cmp ebx, HEAP_END
+    ja .fail
+
+    mov [heap_next], ebx
+    mov [temp_value], eax
+
+    mov edi, eax
+    mov ecx, 64              ; 64 dwords = 256 bytes
+    xor eax, eax
+    rep stosd
+
+    mov esi, alloc_ok_text
+    call print_string
+    mov eax, [temp_value]
+    call print_hex32
+    call print_newline
+    call print_heap_info
+    jmp .done
+
+.fail:
+    mov esi, alloc_fail_text
+    call print_string
+
+.done:
+    popa
+    ret
+
+print_cpu_info:
+    pusha
+    mov esi, cpu_header_text
+    call print_string
+
+    mov eax, 0
+    cpuid
+    mov [cpu_vendor + 0], ebx
+    mov [cpu_vendor + 4], edx
+    mov [cpu_vendor + 8], ecx
+    mov byte [cpu_vendor + 12], 0
+
+    mov esi, cpu_vendor_text
+    call print_string
+    mov esi, cpu_vendor
+    call print_string
+    call print_newline
+
+    mov eax, 1
+    cpuid
+    mov [temp_value], edx
+    mov esi, cpu_features_edx_text
+    call print_string
+    mov eax, [temp_value]
+    call print_hex32
+    call print_newline
+
+    mov [temp_value], ecx
+    mov esi, cpu_features_ecx_text
+    call print_string
+    mov eax, [temp_value]
+    call print_hex32
+    call print_newline
+    call print_newline
+    popa
+    ret
+
+print_irq_info:
+    pusha
+    mov esi, irq_header_text
+    call print_string
+
+    mov esi, irq_timer_text
+    call print_string
+    mov eax, [timer_ticks]
+    call print_dec
+    call print_newline
+
+    mov esi, irq_keyboard_text
+    call print_string
+    mov eax, [keyboard_irq_count]
+    call print_dec
+    call print_newline
+
+    mov esi, irq_chars_text
+    call print_string
+    mov eax, [keyboard_char_count]
+    call print_dec
+    call print_newline
+
+    mov esi, irq_buffer_text
+    call print_string
+    movzx eax, byte [kbd_head]
+    call print_dec
+    mov esi, irq_tail_text
+    call print_string
+    movzx eax, byte [kbd_tail]
+    call print_dec
+    call print_newline
+    call print_newline
+    popa
+    ret
+
+print_memory_map:
+    pusha
+    mov esi, mmap_header_text
+    call print_string
+
+    movzx eax, word [MEMORY_MAP_COUNT]
+    cmp eax, 0
+    jne .has_map
+
+    mov esi, mmap_none_text
+    call print_string
+    jmp .done
+
+.has_map:
+    mov [mmap_remaining], eax
+    mov dword [mmap_index], 0
+    mov dword [mmap_ptr], MEMORY_MAP_ENTRIES
+
+.next_entry:
+    cmp dword [mmap_remaining], 0
+    je .done
+
+    mov esi, mmap_entry_text
+    call print_string
+    mov eax, [mmap_index]
+    call print_dec
+
+    mov esi, mmap_base_text
+    call print_string
+    mov edi, [mmap_ptr]
+    mov eax, [edi]
+    call print_hex32
+
+    mov esi, mmap_len_text
+    call print_string
+    mov edi, [mmap_ptr]
+    mov eax, [edi + 8]
+    call print_hex32
+
+    mov esi, mmap_type_text
+    call print_string
+    mov edi, [mmap_ptr]
+    mov eax, [edi + 16]
+    call print_dec
+    call print_newline
+
+    add dword [mmap_ptr], E820_ENTRY_SIZE
+    inc dword [mmap_index]
+    dec dword [mmap_remaining]
+    jmp .next_entry
+
+.done:
+    call print_newline
+    popa
+    ret
+
 put_char:
     pusha
     mov [current_char], al
@@ -822,10 +1238,21 @@ cursor_x dd 0
 cursor_y dd 0
 input_len dd 0
 timer_ticks dd 0
+keyboard_irq_count dd 0
+keyboard_char_count dd 0
+heap_next dd HEAP_START
+temp_value dd 0
+mmap_index dd 0
+mmap_remaining dd 0
+mmap_ptr dd 0
 current_char db 0
 shift_down db 0
 keyboard_layout db KEYBOARD_LAYOUT_FR
+kbd_head db 0
+kbd_tail db 0
 dec_buffer times 11 db 0
+cpu_vendor times 13 db 0
+kbd_buffer times KBD_BUFFER_SIZE db 0
 
 input_buffer times INPUT_MAX db 0
 
@@ -836,14 +1263,20 @@ cmd_reboot  db 'reboot', 0
 cmd_mem     db 'mem', 0
 cmd_version db 'version', 0
 cmd_uptime  db 'uptime', 0
+cmd_cpu     db 'cpu', 0
+cmd_irq     db 'irq', 0
+cmd_heap    db 'heap', 0
+cmd_alloc   db 'alloc', 0
+cmd_mmap    db 'mmap', 0
 
 banner:
     db '========================================', 10
-    db ' AstraOS 0.0.2 Pulse', 10
+    db ' AstraOS 0.0.3 Forge', 10
     db ' 32-bit protected mode kernel', 10
     db ' Open source MIT - black and white', 10
-    db ' Keyboard: FR AZERTY by default', 10
-    db ' Interrupts: IDT/PIC/PIT timer online', 10
+    db ' Keyboard: IRQ1 FR AZERTY by default', 10
+    db ' Interrupts: IDT/PIC/PIT online', 10
+    db ' Memory: BIOS E820 map + tiny heap', 10
     db '========================================', 10, 10
     db 'Type help to begin.', 10, 10, 0
 
@@ -855,7 +1288,12 @@ help_text:
     db '  about    What AstraOS is', 10
     db '  version  Show version', 10
     db '  uptime   Show timer ticks since boot', 10
-    db '  mem      Memory philosophy', 10
+    db '  mem      Show memory and heap info', 10
+    db '  mmap     Show BIOS E820 memory map', 10
+    db '  heap     Show tiny bump allocator state', 10
+    db '  alloc    Allocate a 256-byte demo block', 10
+    db '  cpu      Show CPUID vendor/features', 10
+    db '  irq      Show interrupt counters', 10
     db '  ai       Local AI concept stub', 10
     db '  kbd      Show keyboard layout', 10
     db '  kbd fr   Switch to French AZERTY', 10
@@ -866,30 +1304,60 @@ help_text:
 about_text:
     db 'AstraOS is a tiny x86 operating system made from scratch.', 10
     db 'This first base boots with a 16-bit loader, switches to 32-bit', 10
-    db 'protected mode, then starts a minimal command shell.', 10
-    db 'Goal: stay light in RAM, modular, and ready for AI tooling later.', 10, 10, 0
+    db 'protected mode, starts IRQ-driven input, a timer, memory map,', 10
+    db 'and a tiny shell. Goal: light in RAM, modular, AI-ready.', 10, 10, 0
 
-version_text db 'AstraOS 0.0.2 Pulse - kernel32', 10, 10, 0
+version_text db 'AstraOS 0.0.3 Forge - kernel32', 10, 10, 0
 
-mem_text:
-    db 'Memory status:', 10
+mem_header_text db 'Memory status:', 10, 0
+mem_mode_text:
     db '  CPU mode : 32-bit protected mode', 10
     db '  Timer    : PIT IRQ0 at 100 Hz', 10
-    db '  Idle     : HLT sleep between polls', 10
-    db '  Kernel   : fixed low-memory image loaded at 0x10000', 10
-    db '  Heap     : not enabled yet', 10
-    db '  Design   : tiny kernel first, optional AI layer later', 10, 10, 0
+    db '  Keyboard : IRQ1 ring buffer', 10
+    db '  Idle     : HLT sleep between IRQs', 10
+    db '  Kernel   : fixed low-memory image loaded at 0x10000', 10, 0
+mem_map_count_text db '  E820 entries : ', 0
+mem_usable_text db '  Usable RAM   : ', 0
+kib_open_text db ' KiB (', 0
+mib_close_text db ' MiB)', 10, 10, 0
+heap_header_text db 'Tiny heap:', 10, 0
+heap_start_text db '  start : ', 0
+heap_next_text db '  next  : ', 0
+heap_used_text db '  used  : ', 0
+heap_free_text db '  free  : ', 0
+bytes_text db ' bytes / ', 0
+kib_suffix_text db ' KiB', 10, 0
+alloc_ok_text db 'Allocated 256 bytes at ', 0
+alloc_fail_text db 'Heap allocation failed: no space left.', 10, 10, 0
+hex_prefix db '0x', 0
 
 ai_text:
     db 'AstraAI local stub online.', 10
-    db 'I am not a real model yet: no wasted RAM, no cloud dependency.', 10
-    db 'Next steps: intent parser, command suggestions, then optional model bridge.', 10
-    db 'For now, try: help, mem, clear, version.', 10, 10, 0
+    db 'I am still rule-based: no wasted RAM, no cloud dependency.', 10
+    db 'Kernel data available now: uptime, cpu, irq, mem, mmap, heap.', 10
+    db 'Next: intent parser that suggests real shell commands.', 10, 10, 0
 
 uptime_prefix db 'Uptime: ', 0
 uptime_seconds_text db 's (ticks: ', 0
 uptime_ticks_suffix db ')', 10, 10, 0
 exception_text db 'AstraOS kernel panic: CPU exception. System halted.', 10, 0
+
+cpu_header_text db 'CPU info:', 10, 0
+cpu_vendor_text db '  vendor       : ', 0
+cpu_features_edx_text db '  features EDX : ', 0
+cpu_features_ecx_text db '  features ECX : ', 0
+irq_header_text db 'Interrupt counters:', 10, 0
+irq_timer_text db '  timer ticks   : ', 0
+irq_keyboard_text db '  keyboard IRQs : ', 0
+irq_chars_text db '  chars queued  : ', 0
+irq_buffer_text db '  buffer head   : ', 0
+irq_tail_text db ' tail: ', 0
+mmap_header_text db 'BIOS E820 memory map:', 10, 0
+mmap_none_text db '  No E820 map provided by the bootloader.', 10, 0
+mmap_entry_text db '  #', 0
+mmap_base_text db ' base=', 0
+mmap_len_text db ' len=', 0
+mmap_type_text db ' type=', 0
 
 kbd_current_fr_text db 'Keyboard layout: FR AZERTY. Use kbd us to switch.', 10, 10, 0
 kbd_current_us_text db 'Keyboard layout: US QWERTY. Use kbd fr to switch.', 10, 10, 0

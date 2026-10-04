@@ -54,7 +54,7 @@ make run-headless
 
 ## ✅ État actuel
 
-AstraOS **0.0.2 Pulse** démarre maintenant avec :
+AstraOS **0.0.3 Forge** démarre maintenant avec :
 
 - un **bootloader 16-bit** de 512 octets ;
 - un passage en **32-bit protected mode** ;
@@ -62,10 +62,14 @@ AstraOS **0.0.2 Pulse** démarre maintenant avec :
 - un écran texte VGA noir/blanc ;
 - une sortie série pour le mode headless ;
 - un clavier **FR AZERTY** par défaut, avec option US QWERTY ;
+- un vrai flux clavier via **IRQ1** + buffer circulaire ;
 - une **IDT** minimale ;
 - un **PIC** remappé ;
 - un timer **PIT 100 Hz** ;
 - une boucle d'attente avec `HLT` pour éviter de brûler du CPU ;
+- une détection mémoire BIOS **E820** ;
+- un mini allocateur mémoire type **bump allocator** ;
+- des infos CPU via **CPUID** ;
 - un petit shell interactif.
 
 Commandes disponibles dans l'OS :
@@ -76,6 +80,11 @@ about
 version
 uptime
 mem
+mmap
+heap
+alloc
+cpu
+irq
 ai
 kbd
 kbd fr
@@ -84,7 +93,7 @@ clear
 reboot
 ```
 
-La commande `ai` est volontairement une base légère pour l'instant : pas encore de vrai modèle IA, pour éviter de consommer beaucoup de RAM trop tôt.
+La commande `ai` est volontairement une base légère pour l'instant : pas encore de vrai modèle IA, pour éviter de consommer beaucoup de RAM trop tôt. Elle commence maintenant à pointer vers les données noyau disponibles : `uptime`, `cpu`, `irq`, `mem`, `mmap`, `heap`.
 
 ### Clavier
 
@@ -104,15 +113,23 @@ Côté QEMU graphique, `make run` lance aussi QEMU avec `-k fr` par défaut. Pou
 make run QEMU_KEYBOARD=en-us
 ```
 
-### Timer système
+### Timer, interruptions, mémoire
 
-Le noyau installe maintenant une IDT, remappe le PIC et configure le PIT à environ 100 Hz.
+Le noyau installe maintenant une IDT, remappe le PIC, configure le PIT à environ 100 Hz et utilise IRQ1 pour le clavier.
 
 Dans AstraOS :
 
 ```txt
 uptime   Affiche le temps depuis le boot via le timer PIT
+irq      Affiche les compteurs d'interruptions
+cpu      Affiche le vendor CPUID et les flags CPU
+mem      Affiche RAM utilisable + état du heap
+mmap     Affiche la carte mémoire BIOS E820
+heap     Affiche l'allocateur mémoire minimal
+alloc    Alloue un bloc de test de 256 octets
 ```
+
+`alloc` n'est pas encore un malloc complet : c'est une première base de gestion mémoire, volontairement simple et prévisible.
 
 ---
 
@@ -182,9 +199,11 @@ Donc la base actuelle est volontairement simple, rapide et compréhensible.
 
 - [x] IDT et interruptions
 - [x] Timer système PIT 100 Hz
-- [ ] Pilote clavier par interruptions
-- [ ] Détection mémoire BIOS/E820
-- [ ] Allocateur mémoire simple
+- [x] Pilote clavier par interruptions IRQ1
+- [x] Détection mémoire BIOS/E820
+- [x] Allocateur mémoire simple
+- [ ] IDT avec handlers dédiés par exception
+- [ ] Gestion mémoire plus complète
 
 ### Phase 3 — Stockage et fichiers
 

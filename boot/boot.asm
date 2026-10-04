@@ -1,12 +1,17 @@
 ; AstraOS boot sector
 ; Loads the 32-bit kernel from the floppy image, enables protected mode,
-; and jumps to the kernel entry point at 0x1000.
+; and jumps to the kernel entry point at 0x10000.
 
 [org 0x7C00]
 [bits 16]
 
 KERNEL_OFFSET  equ 0x10000
 KERNEL_SEGMENT equ 0x1000
+
+MEMORY_MAP_COUNT   equ 0x8000
+MEMORY_MAP_ENTRIES equ 0x8004
+E820_ENTRY_SIZE    equ 24
+E820_MAX_ENTRIES   equ 32
 
 %ifndef KERNEL_SECTORS
 %define KERNEL_SECTORS 64
@@ -27,6 +32,13 @@ start:
     mov ax, 0x0003
     int 0x10
 
+    call detect_memory
+
+    ; Be explicit after BIOS calls: keep our boot data in segment zero.
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+
     call load_kernel
 
     cli
@@ -39,6 +51,56 @@ start:
     mov cr0, eax
 
     jmp CODE_SEG:init_protected_mode
+
+detect_memory:
+    ; Ask the BIOS for the physical memory map (E820) while we are still
+    ; in real mode. The 32-bit kernel later reads it at 0x8000.
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    xor ebx, ebx
+    xor bp, bp
+    mov word [MEMORY_MAP_COUNT], 0
+    mov di, MEMORY_MAP_ENTRIES
+
+.next_entry:
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    mov eax, 0xE820
+    mov edx, 0x534D4150       ; 'SMAP'
+    mov ecx, E820_ENTRY_SIZE
+    mov dword [es:di + 20], 1 ; request ACPI 3.x extended attributes
+    int 0x15
+    jc .failed
+
+    cmp eax, 0x534D4150
+    jne .failed
+    cmp ecx, 20
+    jb .failed
+
+    inc bp
+    add di, E820_ENTRY_SIZE
+    cmp bp, E820_MAX_ENTRIES
+    jae .done
+
+    test ebx, ebx
+    jne .next_entry
+
+.done:
+    xor ax, ax
+    mov ds, ax
+    mov [MEMORY_MAP_COUNT], bp
+    ret
+
+.failed:
+    ; If E820 is not available, keep count at zero. The kernel still boots.
+    xor ax, ax
+    mov ds, ax
+    cmp bp, 0
+    jne .done
+    mov word [MEMORY_MAP_COUNT], 0
+    ret
 
 load_kernel:
     mov ax, KERNEL_SEGMENT
