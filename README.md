@@ -54,7 +54,7 @@ make run-headless
 
 ## ✅ État actuel
 
-AstraOS **0.0.4 Vector** démarre maintenant avec :
+AstraOS **0.0.5 Navigator** démarre maintenant avec :
 
 - un **bootloader 16-bit** de 512 octets ;
 - un passage en **32-bit protected mode** ;
@@ -71,6 +71,7 @@ AstraOS **0.0.4 Vector** démarre maintenant avec :
 - une pagination 32-bit avec identity-map des premiers **4 MiB** ;
 - un mini allocateur mémoire type **bump allocator** ;
 - un mini système de fichiers RAM en lecture seule ;
+- un premier **explorateur de fichiers** interactif en mode texte ;
 - un assistant `ai` local basé sur des règles ;
 - des infos CPU via **CPUID** ;
 - un petit shell interactif.
@@ -91,6 +92,10 @@ alloc
 cpu
 irq
 ls
+explorer
+files
+explorateur
+fichiers
 cat readme
 echo hello
 ai
@@ -140,11 +145,43 @@ status   Résumé rapide du système
 heap     Affiche l'allocateur mémoire minimal
 alloc    Alloue un bloc de test de 256 octets
 ls       Liste les fichiers RAM intégrés
+explorer Ouvre le premier explorateur de fichiers
+files    Alias de explorer
+explorateur Alias FR de explorer
+fichiers Alias FR de explorer
 cat NAME Affiche un fichier RAM
 ai mem   Suggère des commandes selon un sujet
 ```
 
 `alloc` n'est pas encore un malloc complet : c'est une première base de gestion mémoire, volontairement simple et prévisible.
+
+### Explorateur de fichiers
+
+AstraOS possède maintenant un premier explorateur de fichiers en mode texte :
+
+```txt
+explorer
+```
+
+Alias :
+
+```txt
+files
+explorateur
+fichiers
+```
+
+Contrôles dans l'explorateur :
+
+```txt
+z / k       Monter
+s / j       Descendre
+Entrée / o  Ouvrir un fichier
+b / Entrée  Retour depuis un fichier
+q           Quitter l'explorateur
+```
+
+Pour l'instant, il explore le système de fichiers RAM intégré au kernel. La prochaine étape sera un vrai stockage disque.
 
 ---
 
@@ -219,6 +256,7 @@ Donc la base actuelle est volontairement simple, rapide et compréhensible.
 - [x] Pagination 32-bit identity-map 4 MiB
 - [x] Allocateur mémoire simple
 - [x] Mini système de fichiers RAM intégré
+- [x] Premier explorateur de fichiers texte
 - [x] Assistant local de commandes AstraAI
 - [x] IDT avec handlers dédiés par exception
 - [ ] Gestion mémoire plus complète
@@ -227,6 +265,7 @@ Donc la base actuelle est volontairement simple, rapide et compréhensible.
 
 - [ ] Lecture disque plus robuste
 - [x] Système de fichiers RAM minimal
+- [x] Explorateur de fichiers RAM
 - [ ] Système de fichiers disque minimal
 - [ ] Chargement de fichiers/programmes
 

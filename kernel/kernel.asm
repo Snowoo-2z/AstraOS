@@ -39,6 +39,7 @@ PIT_CH0   equ 0x40
 
 KEYBOARD_LAYOUT_FR equ 0
 KEYBOARD_LAYOUT_US equ 1
+FILE_COUNT equ 4
 
 kernel_entry:
     cli
@@ -219,6 +220,30 @@ execute_command:
     cmp eax, 1
     je .ls
 
+    mov esi, input_buffer
+    mov edi, cmd_explorer
+    call string_equals
+    cmp eax, 1
+    je .explorer
+
+    mov esi, input_buffer
+    mov edi, cmd_files
+    call string_equals
+    cmp eax, 1
+    je .explorer
+
+    mov esi, input_buffer
+    mov edi, cmd_explorateur
+    call string_equals
+    cmp eax, 1
+    je .explorer
+
+    mov esi, input_buffer
+    mov edi, cmd_fichiers
+    call string_equals
+    cmp eax, 1
+    je .explorer
+
     call is_cat_command
     cmp eax, 1
     je .cat
@@ -304,6 +329,10 @@ execute_command:
     call print_file_list
     jmp .done
 
+.explorer:
+    call file_explorer
+    jmp .done
+
 .cat:
     call execute_cat_command
     jmp .done
@@ -348,6 +377,15 @@ string_equals:
 .end:
     pop edi
     pop esi
+    ret
+
+lower_char:
+    cmp al, 'A'
+    jb .done
+    cmp al, 'Z'
+    ja .done
+    add al, 32
+.done:
     ret
 
 is_ai_command:
@@ -1517,6 +1555,180 @@ print_file_list:
     popa
     ret
 
+file_explorer:
+    pusha
+    mov byte [explorer_selected], 0
+    mov byte [explorer_exit], 0
+
+.render:
+    call render_file_explorer
+
+.wait_key:
+    call read_char
+    call lower_char
+
+    cmp al, 'q'
+    je .quit
+    cmp al, 27
+    je .quit
+
+    cmp al, 'z'             ; AZERTY up
+    je .up
+    cmp al, 'k'
+    je .up
+    cmp al, 'p'
+    je .up
+
+    cmp al, 's'             ; AZERTY down
+    je .down
+    cmp al, 'j'
+    je .down
+    cmp al, 'n'
+    je .down
+
+    cmp al, 13
+    je .open
+    cmp al, 10
+    je .open
+    cmp al, 'o'
+    je .open
+
+    jmp .wait_key
+
+.up:
+    cmp byte [explorer_selected], 0
+    jne .up_dec
+    mov byte [explorer_selected], FILE_COUNT - 1
+    jmp .render
+.up_dec:
+    dec byte [explorer_selected]
+    jmp .render
+
+.down:
+    inc byte [explorer_selected]
+    cmp byte [explorer_selected], FILE_COUNT
+    jb .render
+    mov byte [explorer_selected], 0
+    jmp .render
+
+.open:
+    call explorer_open_selected
+    cmp byte [explorer_exit], 1
+    je .quit
+    jmp .render
+
+.quit:
+    call clear_screen
+    mov esi, explorer_exit_text
+    call print_string
+    popa
+    ret
+
+render_file_explorer:
+    pusha
+    call clear_screen
+    mov esi, explorer_header_text
+    call print_string
+
+    mov al, 0
+    mov esi, fs_name_readme
+    call explorer_print_item
+
+    mov al, 1
+    mov esi, fs_name_roadmap
+    call explorer_print_item
+
+    mov al, 2
+    mov esi, fs_name_ai
+    call explorer_print_item
+
+    mov al, 3
+    mov esi, fs_name_license
+    call explorer_print_item
+
+    mov esi, explorer_footer_text
+    call print_string
+    popa
+    ret
+
+; al = item index, esi = zero-terminated filename
+explorer_print_item:
+    pusha
+    mov bl, al
+    cmp bl, [explorer_selected]
+    jne .normal
+    mov esi, explorer_selected_marker
+    call print_string
+    jmp .name
+.normal:
+    mov esi, explorer_normal_marker
+    call print_string
+.name:
+    popa
+    push esi
+    call print_string
+    mov esi, explorer_file_suffix
+    call print_string
+    pop esi
+    ret
+
+explorer_open_selected:
+    pusha
+    call clear_screen
+    cmp byte [explorer_selected], 0
+    je .readme
+    cmp byte [explorer_selected], 1
+    je .roadmap
+    cmp byte [explorer_selected], 2
+    je .ai
+    jmp .license
+
+.readme:
+    mov esi, fs_readme_text
+    call print_string
+    jmp .wait
+.roadmap:
+    mov esi, fs_roadmap_text
+    call print_string
+    jmp .wait
+.ai:
+    mov esi, fs_ai_text
+    call print_string
+    jmp .wait
+.license:
+    mov esi, fs_license_text
+    call print_string
+
+.wait:
+    mov esi, explorer_view_footer_text
+    call print_string
+
+.wait_key:
+    call read_char
+    call lower_char
+    cmp al, 'q'
+    je .quit
+    cmp al, 27
+    je .quit
+    cmp al, 'b'
+    je .back
+    cmp al, 8
+    je .back
+    cmp al, 13
+    je .back
+    cmp al, 10
+    je .back
+    jmp .wait_key
+
+.quit:
+    mov byte [explorer_exit], 1
+    popa
+    ret
+.back:
+    mov byte [explorer_exit], 0
+    popa
+    ret
+
 put_char:
     pusha
     mov [current_char], al
@@ -1651,6 +1863,8 @@ mmap_ptr dd 0
 current_char db 0
 shift_down db 0
 keyboard_layout db KEYBOARD_LAYOUT_FR
+explorer_selected db 0
+explorer_exit db 0
 kbd_head db 0
 kbd_tail db 0
 dec_buffer times 11 db 0
@@ -1674,15 +1888,20 @@ cmd_mmap    db 'mmap', 0
 cmd_paging  db 'paging', 0
 cmd_status  db 'status', 0
 cmd_ls      db 'ls', 0
+cmd_explorer db 'explorer', 0
+cmd_files   db 'files', 0
+cmd_explorateur db 'explorateur', 0
+cmd_fichiers db 'fichiers', 0
 
 banner:
     db '========================================', 10
-    db ' AstraOS 0.0.4 Vector', 10
+    db ' AstraOS 0.0.5 Navigator', 10
     db ' 32-bit protected mode kernel', 10
     db ' Open source MIT - black and white', 10
     db ' Keyboard: IRQ1 FR AZERTY by default', 10
     db ' Interrupts: IDT/PIC/PIT online', 10
     db ' Memory: BIOS E820 map + tiny heap', 10
+    db ' Files: interactive RAM explorer', 10
     db '========================================', 10, 10
     db 'Type help to begin.', 10, 10, 0
 
@@ -1703,6 +1922,9 @@ help_text:
     db '  cpu      Show CPUID vendor/features', 10
     db '  irq      Show interrupt counters', 10
     db '  ls       List RAM files', 10
+    db '  explorer Interactive RAM file explorer', 10
+    db '  files    Alias for explorer', 10
+    db '  explorateur Alias FR', 10
     db '  cat NAME Print a RAM file', 10
     db '  echo TXT Print text', 10
     db '  ai       Local AI helper', 10
@@ -1716,9 +1938,9 @@ about_text:
     db 'AstraOS is a tiny x86 operating system made from scratch.', 10
     db 'This first base boots with a 16-bit loader, switches to 32-bit', 10
     db 'protected mode, starts IRQ-driven input, a timer, memory map,', 10
-    db 'and a tiny shell. Goal: light in RAM, modular, AI-ready.', 10, 10, 0
+    db 'paging, a RAM file explorer, and a tiny shell. Light, modular, AI-ready.', 10, 10, 0
 
-version_text db 'AstraOS 0.0.4 Vector - kernel32', 10, 10, 0
+version_text db 'AstraOS 0.0.5 Navigator - kernel32', 10, 10, 0
 
 mem_header_text db 'Memory status:', 10, 0
 mem_mode_text:
@@ -1763,7 +1985,7 @@ echo_usage_text db 'Usage: echo text', 10, 10, 0
 ai_text:
     db 'AstraAI local stub online.', 10
     db 'I am still rule-based: no wasted RAM, no cloud dependency.', 10
-    db 'Kernel data available now: uptime, cpu, irq, mem, mmap, heap.', 10
+    db 'Kernel data available now: uptime, cpu, irq, mem, mmap, heap, files.', 10
     db 'Try: ai mem, ai fichiers, ai clavier, ai cpu, ai irq, ai heap.', 10, 10, 0
 ai_arg_mem db 'mem', 0
 ai_arg_memoire db 'memoire', 0
@@ -1775,7 +1997,7 @@ ai_arg_cpu db 'cpu', 0
 ai_arg_irq db 'irq', 0
 ai_arg_heap db 'heap', 0
 ai_mem_text db 'AstraAI: utilise mem pour le resume, mmap pour la carte BIOS, heap pour l allocateur.', 10, 10, 0
-ai_files_text db 'AstraAI: utilise ls pour voir les fichiers RAM, puis cat readme ou cat roadmap.', 10, 10, 0
+ai_files_text db 'AstraAI: utilise explorer pour naviguer, ls pour lister, cat readme pour lire.', 10, 10, 0
 ai_kbd_text db 'AstraAI: le clavier est en IRQ1. Utilise kbd, kbd fr, ou kbd us.', 10, 10, 0
 ai_cpu_text db 'AstraAI: utilise cpu pour CPUID et paging pour CR0/CR3.', 10, 10, 0
 ai_irq_text db 'AstraAI: utilise irq pour les compteurs et uptime pour le timer.', 10, 10, 0
@@ -1811,6 +2033,23 @@ kbd_current_us_text db 'Keyboard layout: US QWERTY. Use kbd fr to switch.', 10, 
 kbd_set_fr_text db 'Keyboard switched to FR AZERTY.', 10, 10, 0
 kbd_set_us_text db 'Keyboard switched to US QWERTY.', 10, 10, 0
 kbd_usage_text db 'Usage: kbd, kbd fr, or kbd us.', 10, 10, 0
+
+explorer_header_text:
+    db '========================================', 10
+    db ' AstraOS File Explorer', 10
+    db ' RAM filesystem /', 10
+    db '========================================', 10, 10
+    db 'Files:', 10, 0
+explorer_footer_text:
+    db 10
+    db 'Controls: z/k=up  s/j=down  Enter/o=open  q=quit', 10, 0
+explorer_view_footer_text:
+    db 10
+    db 'Controls: b/Enter=back  q=quit explorer', 10, 0
+explorer_exit_text db 'Exited file explorer.', 10, 10, 0
+explorer_selected_marker db ' > ', 0
+explorer_normal_marker db '   ', 0
+explorer_file_suffix db '  [ram]', 10, 0
 
 fs_name_readme db 'readme', 0
 fs_name_roadmap db 'roadmap', 0
