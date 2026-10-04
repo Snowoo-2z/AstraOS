@@ -4,7 +4,7 @@
 ASM ?= nasm
 QEMU ?= qemu-system-i386
 QEMU_KEYBOARD ?= fr
-QEMU_DISPLAY ?= gtk,show-cursor=off
+QEMU_DISPLAY ?= gtk,show-cursor=off,grab-on-hover=on
 QEMU_DISPLAY_FLAGS := $(if $(QEMU_DISPLAY),-display $(QEMU_DISPLAY),)
 QEMU_FLAGS ?= -no-reboot -no-shutdown
 

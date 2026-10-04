@@ -186,6 +186,7 @@ Clic gauche Ouvrir le fichier sous le pointeur
 z / k       Monter
 s / j       Descendre
 Entrée / o  Ouvrir le fichier sélectionné
+c           Recentrer le curseur AstraOS
 b / Entrée  Retour depuis un fichier
 q           Redémarrer pour revenir au shell texte
 ```
@@ -198,11 +199,11 @@ mouse
 
 Dans QEMU, clique dans la fenêtre pour capturer la souris. Selon l'interface QEMU, `Ctrl` + `Alt` + `G` peut libérer la souris. Le mode graphique est visible avec `make run`; en `make run-headless`, la sortie reste surtout utile pour le shell série.
 
-`make run` masque maintenant le curseur hôte QEMU avec `-display gtk,show-cursor=off`, pour éviter de voir deux souris non synchronisées. Si ton QEMU ne supporte pas GTK, lance avec `make run QEMU_DISPLAY=`.
+`make run` masque maintenant le curseur hôte QEMU et force la capture avec `-display gtk,show-cursor=off,grab-on-hover=on`, pour éviter de voir deux souris non synchronisées. Si ton QEMU ne supporte pas GTK, lance avec `make run QEMU_DISPLAY=`.
 
 `make run` utilise aussi `-no-reboot -no-shutdown` pour garder la fenêtre ouverte si le noyau plante : ça aide à lire le message au lieu de voir QEMU disparaître.
 
-Le rendu graphique utilise maintenant un backbuffer en RAM avant de copier l'image vers la VRAM, ce qui réduit fortement les effets de dessin blanc/flicker.
+Le rendu graphique utilise maintenant un backbuffer en RAM avant de copier l'image vers la VRAM, ce qui réduit fortement les effets de dessin blanc/flicker. Le driver souris PS/2 est relatif : si tu vois encore le curseur Windows/Linux en plus de celui d'AstraOS, utilise `Ctrl` + `Alt` + `G`, reclique dans QEMU, ou appuie sur `c` dans la GUI pour recentrer le curseur AstraOS.
 
 Pour l'instant, il explore le système de fichiers RAM intégré au kernel. La souris est une première implémentation PS/2 en IRQ12. Le mode graphique est encore volontairement simple : VGA mode 13h, fenêtres dessinées à la main, curseur logiciel. La prochaine étape sera un vrai stockage disque et une interface graphique plus complète.
 

@@ -43,6 +43,7 @@ FILE_COUNT equ 4
 FILE_LIST_START_ROW equ 6
 MOUSE_MAX_X equ 312
 MOUSE_MAX_Y equ 190
+MOUSE_SCALE equ 2
 GUI_VRAM equ 0xA0000
 GUI_BACKBUFFER equ 0x300000
 
@@ -983,11 +984,13 @@ mouse_process_byte:
 
     ; X movement, signed 8-bit.
     movsx eax, byte [mouse_packet + 1]
+    imul eax, MOUSE_SCALE
     add [mouse_x], eax
     call clamp_mouse_x
 
     ; PS/2 Y is positive upward; screen Y is positive downward.
     movsx eax, byte [mouse_packet + 2]
+    imul eax, MOUSE_SCALE
     neg eax
     add [mouse_y], eax
     call clamp_mouse_y
@@ -1842,6 +1845,8 @@ gui_explorer:
     call lower_char
     cmp al, 'q'
     je .reboot
+    cmp al, 'c'
+    je .center_mouse
     cmp al, 'r'
     je .gui_loop
     cmp al, '1'
@@ -1851,6 +1856,12 @@ gui_explorer:
     sub al, '1'
     mov [gui_hover], al
     call gui_open_hovered_file
+    jmp .gui_loop
+
+.center_mouse:
+    mov dword [mouse_x], 160
+    mov dword [mouse_y], 100
+    mov byte [mouse_updated], 1
     jmp .gui_loop
 
 .reboot:
@@ -3072,7 +3083,7 @@ kbd_usage_text db 'Usage: kbd, kbd fr, or kbd us.', 10, 10, 0
 
 gui_title_text db 'ASTRAOS GUI', 0
 gui_window_title_text db 'FILES', 0
-gui_footer_text db 'MOUSE CLICK OPEN  Q REBOOT', 0
+gui_footer_text db 'MOUSE CLICK OPEN  C CENTER  Q REBOOT', 0
 gui_viewer_title db 'FILE VIEWER', 0
 gui_viewer_footer db 'CLICK OR ENTER BACK  Q REBOOT', 0
 gui_readme_label db 'README', 0
