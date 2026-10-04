@@ -61,6 +61,7 @@ AstraOS démarre maintenant avec :
 - un mini **kernel 32-bit** ;
 - un écran texte VGA noir/blanc ;
 - une sortie série pour le mode headless ;
+- un clavier **FR AZERTY** par défaut, avec option US QWERTY ;
 - un petit shell interactif.
 
 Commandes disponibles dans l'OS :
@@ -71,11 +72,32 @@ about
 version
 mem
 ai
+kbd
+kbd fr
+kbd us
 clear
 reboot
 ```
 
 La commande `ai` est volontairement une base légère pour l'instant : pas encore de vrai modèle IA, pour éviter de consommer beaucoup de RAM trop tôt.
+
+### Clavier
+
+Le clavier par défaut est maintenant **FR AZERTY**.
+
+Dans AstraOS :
+
+```txt
+kbd       Affiche le layout actuel
+kbd fr    Passe en AZERTY français
+kbd us    Passe en QWERTY US
+```
+
+Côté QEMU graphique, `make run` lance aussi QEMU avec `-k fr` par défaut. Pour forcer un autre mapping QEMU côté hôte :
+
+```bash
+make run QEMU_KEYBOARD=en-us
+```
 
 ---
 

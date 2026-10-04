@@ -3,6 +3,7 @@
 
 ASM ?= nasm
 QEMU ?= qemu-system-i386
+QEMU_KEYBOARD ?= fr
 
 BUILD_DIR := build
 BOOT_SRC := boot/boot.asm
@@ -47,7 +48,7 @@ $(IMAGE): $(BOOT_BIN) $(KERNEL_BIN)
 	@echo "Kernel size: $$(wc -c < $(KERNEL_BIN)) bytes / $$(( $(KERNEL_SECTORS) * 512 )) bytes loaded."
 
 run: doctor $(IMAGE)
-	$(QEMU) -drive file=$(IMAGE),format=raw,if=floppy -boot a -m 32M
+	$(QEMU) -drive file=$(IMAGE),format=raw,if=floppy -boot a -m 32M -k $(QEMU_KEYBOARD)
 
 # Useful on WSL/SSH/no-GUI machines. Output is mirrored to serial and input works over serial.
 run-headless: doctor $(IMAGE)

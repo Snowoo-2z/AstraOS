@@ -13,6 +13,9 @@ INPUT_MAX    equ 96
 COM1         equ 0x3F8
 DATA_SEG     equ 0x10
 
+KEYBOARD_LAYOUT_FR equ 0
+KEYBOARD_LAYOUT_US equ 1
+
 kernel_entry:
     cli
     cld
@@ -136,6 +139,10 @@ execute_command:
     cmp eax, 1
     je .version
 
+    call is_kbd_command
+    cmp eax, 1
+    je .kbd
+
     call is_ai_command
     cmp eax, 1
     je .ai
@@ -172,6 +179,10 @@ execute_command:
 .version:
     mov esi, version_text
     call print_string
+    jmp .done
+
+.kbd:
+    call execute_kbd_command
     jmp .done
 
 .ai:
@@ -226,6 +237,71 @@ is_ai_command:
     mov eax, 1
     ret
 
+is_kbd_command:
+    cmp byte [input_buffer], 'k'
+    jne .no
+    cmp byte [input_buffer + 1], 'b'
+    jne .no
+    cmp byte [input_buffer + 2], 'd'
+    jne .no
+    mov al, [input_buffer + 3]
+    cmp al, 0
+    je .yes
+    cmp al, ' '
+    je .yes
+.no:
+    xor eax, eax
+    ret
+.yes:
+    mov eax, 1
+    ret
+
+execute_kbd_command:
+    cmp byte [input_buffer + 3], 0
+    je .show
+    cmp byte [input_buffer + 3], ' '
+    jne .usage
+
+    cmp byte [input_buffer + 4], 'f'
+    jne .try_us
+    cmp byte [input_buffer + 5], 'r'
+    jne .usage
+    cmp byte [input_buffer + 6], 0
+    jne .usage
+    mov byte [keyboard_layout], KEYBOARD_LAYOUT_FR
+    mov esi, kbd_set_fr_text
+    call print_string
+    ret
+
+.try_us:
+    cmp byte [input_buffer + 4], 'u'
+    jne .usage
+    cmp byte [input_buffer + 5], 's'
+    jne .usage
+    cmp byte [input_buffer + 6], 0
+    jne .usage
+    mov byte [keyboard_layout], KEYBOARD_LAYOUT_US
+    mov esi, kbd_set_us_text
+    call print_string
+    ret
+
+.show:
+    cmp byte [keyboard_layout], KEYBOARD_LAYOUT_US
+    je .show_us
+    mov esi, kbd_current_fr_text
+    call print_string
+    ret
+
+.show_us:
+    mov esi, kbd_current_us_text
+    call print_string
+    ret
+
+.usage:
+    mov esi, kbd_usage_text
+    call print_string
+    ret
+
 reboot_system:
 .wait_controller:
     in al, 0x64
@@ -277,13 +353,26 @@ keyboard_read_char:
     cmp ebx, keymap_len
     jae .none
 
+    cmp byte [keyboard_layout], KEYBOARD_LAYOUT_US
+    je .layout_us
+
     cmp byte [shift_down], 0
-    jne .use_shift
-    mov al, [keymap + ebx]
+    jne .use_fr_shift
+    mov al, [keymap_fr + ebx]
     ret
 
-.use_shift:
-    mov al, [keymap_shift + ebx]
+.use_fr_shift:
+    mov al, [keymap_fr_shift + ebx]
+    ret
+
+.layout_us:
+    cmp byte [shift_down], 0
+    jne .use_us_shift
+    mov al, [keymap_us + ebx]
+    ret
+
+.use_us_shift:
+    mov al, [keymap_us_shift + ebx]
     ret
 
 .shift_down:
@@ -519,6 +608,7 @@ cursor_y dd 0
 input_len dd 0
 current_char db 0
 shift_down db 0
+keyboard_layout db KEYBOARD_LAYOUT_FR
 
 input_buffer times INPUT_MAX db 0
 
@@ -534,6 +624,7 @@ banner:
     db ' AstraOS 0.0.1 First Light', 10
     db ' 32-bit protected mode kernel', 10
     db ' Open source MIT - black and white', 10
+    db ' Keyboard: FR AZERTY by default', 10
     db '========================================', 10, 10
     db 'Type help to begin.', 10, 10, 0
 
@@ -546,6 +637,9 @@ help_text:
     db '  version  Show version', 10
     db '  mem      Memory philosophy', 10
     db '  ai       Local AI concept stub', 10
+    db '  kbd      Show keyboard layout', 10
+    db '  kbd fr   Switch to French AZERTY', 10
+    db '  kbd us   Switch to US QWERTY', 10
     db '  clear    Clear the screen', 10
     db '  reboot   Restart the VM', 10, 10, 0
 
@@ -570,12 +664,44 @@ ai_text:
     db 'Next steps: intent parser, command suggestions, then optional model bridge.', 10
     db 'For now, try: help, mem, clear, version.', 10, 10, 0
 
+kbd_current_fr_text db 'Keyboard layout: FR AZERTY. Use kbd us to switch.', 10, 10, 0
+kbd_current_us_text db 'Keyboard layout: US QWERTY. Use kbd fr to switch.', 10, 10, 0
+kbd_set_fr_text db 'Keyboard switched to FR AZERTY.', 10, 10, 0
+kbd_set_us_text db 'Keyboard switched to US QWERTY.', 10, 10, 0
+kbd_usage_text db 'Usage: kbd, kbd fr, or kbd us.', 10, 10, 0
+
 unknown_text db 'Unknown command. Type help.', 10, 10, 0
 reboot_text db 'Rebooting AstraOS...', 10, 0
 
-; Minimal US scancode set 1 maps. Serial input is also supported, which is
+; Minimal PS/2 scancode set 1 maps. Serial input is also supported, which is
 ; easier for headless QEMU and non-US host keyboards.
-keymap:
+; The FR map is ASCII-only on purpose: accents are simplified so the shell can
+; stay tiny and predictable in early development.
+keymap_fr:
+    db 0, 0
+    db '&','e',34,39,'(','-','e','_','c','a',')','='
+    db 8, 9
+    db 'a','z','e','r','t','y','u','i','o','p','^','$'
+    db 13, 0
+    db 'q','s','d','f','g','h','j','k','l','m','u','2'
+    db 0, '*'
+    db 'w','x','c','v','b','n',',',';',':','!'
+    db 0,'*',0,' '
+keymap_fr_end:
+keymap_len equ keymap_fr_end - keymap_fr
+
+keymap_fr_shift:
+    db 0, 0
+    db '1','2','3','4','5','6','7','8','9','0',']','+'
+    db 8, 9
+    db 'A','Z','E','R','T','Y','U','I','O','P','"','L'
+    db 13, 0
+    db 'Q','S','D','F','G','H','J','K','L','M','%',' '
+    db 0, 'u'
+    db 'W','X','C','V','B','N','?','.','/','s'
+    db 0,'*',0,' '
+
+keymap_us:
     db 0, 0
     db '1','2','3','4','5','6','7','8','9','0','-','='
     db 8, 9
@@ -585,10 +711,8 @@ keymap:
     db 0, 92
     db 'z','x','c','v','b','n','m',44,46,47
     db 0,'*',0,' '
-keymap_end:
-keymap_len equ keymap_end - keymap
 
-keymap_shift:
+keymap_us_shift:
     db 0, 0
     db '!','@','#','$','%','^','&','*','(',')','_','+'
     db 8, 9
