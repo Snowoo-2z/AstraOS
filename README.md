@@ -54,7 +54,7 @@ make run-headless
 
 ## ✅ État actuel
 
-AstraOS **0.0.5 Navigator** démarre maintenant avec :
+AstraOS **0.0.6 Pointer** démarre maintenant avec :
 
 - un **bootloader 16-bit** de 512 octets ;
 - un passage en **32-bit protected mode** ;
@@ -71,8 +71,9 @@ AstraOS **0.0.5 Navigator** démarre maintenant avec :
 - une pagination 32-bit avec identity-map des premiers **4 MiB** ;
 - un mini allocateur mémoire type **bump allocator** ;
 - un mini système de fichiers RAM en lecture seule ;
-- un premier **explorateur de fichiers** interactif en mode texte ;
+- un premier **explorateur de fichiers** interactif avec pointeur souris PS/2 ;
 - un assistant `ai` local basé sur des règles ;
+- des infos souris via IRQ12 ;
 - des infos CPU via **CPUID** ;
 - un petit shell interactif.
 
@@ -91,6 +92,7 @@ heap
 alloc
 cpu
 irq
+mouse
 ls
 explorer
 files
@@ -137,6 +139,7 @@ Dans AstraOS :
 ```txt
 uptime   Affiche le temps depuis le boot via le timer PIT
 irq      Affiche les compteurs d'interruptions
+mouse    Affiche l'état souris PS/2 / IRQ12
 cpu      Affiche le vendor CPUID et les flags CPU
 mem      Affiche RAM utilisable + état du heap
 mmap     Affiche la carte mémoire BIOS E820
@@ -174,14 +177,24 @@ fichiers
 Contrôles dans l'explorateur :
 
 ```txt
+Souris      Déplacer le pointeur
+Clic gauche Ouvrir le fichier sous le pointeur
 z / k       Monter
 s / j       Descendre
-Entrée / o  Ouvrir un fichier
+Entrée / o  Ouvrir le fichier sélectionné
 b / Entrée  Retour depuis un fichier
 q           Quitter l'explorateur
 ```
 
-Pour l'instant, il explore le système de fichiers RAM intégré au kernel. La prochaine étape sera un vrai stockage disque.
+Tu peux vérifier la souris avec :
+
+```txt
+mouse
+```
+
+Dans QEMU, clique dans la fenêtre pour capturer la souris. Selon l'interface QEMU, `Ctrl` + `Alt` + `G` peut libérer la souris.
+
+Pour l'instant, il explore le système de fichiers RAM intégré au kernel. La souris est une première implémentation PS/2 en IRQ12. La prochaine étape sera un vrai stockage disque et une interface graphique plus complète.
 
 ---
 
@@ -257,6 +270,7 @@ Donc la base actuelle est volontairement simple, rapide et compréhensible.
 - [x] Allocateur mémoire simple
 - [x] Mini système de fichiers RAM intégré
 - [x] Premier explorateur de fichiers texte
+- [x] Souris PS/2 IRQ12 pour l'explorateur
 - [x] Assistant local de commandes AstraAI
 - [x] IDT avec handlers dédiés par exception
 - [ ] Gestion mémoire plus complète
@@ -265,7 +279,7 @@ Donc la base actuelle est volontairement simple, rapide et compréhensible.
 
 - [ ] Lecture disque plus robuste
 - [x] Système de fichiers RAM minimal
-- [x] Explorateur de fichiers RAM
+- [x] Explorateur de fichiers RAM avec souris
 - [ ] Système de fichiers disque minimal
 - [ ] Chargement de fichiers/programmes
 

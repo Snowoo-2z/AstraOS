@@ -40,6 +40,9 @@ PIT_CH0   equ 0x40
 KEYBOARD_LAYOUT_FR equ 0
 KEYBOARD_LAYOUT_US equ 1
 FILE_COUNT equ 4
+FILE_LIST_START_ROW equ 6
+MOUSE_MAX_X equ 639
+MOUSE_MAX_Y equ 199
 
 kernel_entry:
     cli
@@ -185,6 +188,12 @@ execute_command:
     je .irq
 
     mov esi, input_buffer
+    mov edi, cmd_mouse
+    call string_equals
+    cmp eax, 1
+    je .mouse
+
+    mov esi, input_buffer
     mov edi, cmd_heap
     call string_equals
     cmp eax, 1
@@ -303,6 +312,10 @@ execute_command:
 
 .irq:
     call print_irq_info
+    jmp .done
+
+.mouse:
+    call print_mouse_info
     jmp .done
 
 .heap:
@@ -717,6 +730,7 @@ setup_interrupts:
     call setup_idt
     call remap_pic
     call init_pit
+    call init_ps2_mouse
     sti
     ret
 
@@ -750,6 +764,10 @@ setup_idt:
 
     mov ebx, 33              ; IRQ1 keyboard after PIC remap
     mov eax, isr_keyboard
+    call set_idt_entry
+
+    mov ebx, 44              ; IRQ12 mouse after PIC remap
+    mov eax, isr_mouse
     call set_idt_entry
 
     lidt [idt_descriptor]
@@ -804,9 +822,9 @@ remap_pic:
     out PIC2_DATA, al
     call io_wait
 
-    mov al, 0xFC             ; unmask IRQ0 timer and IRQ1 keyboard
+    mov al, 0xF8             ; unmask IRQ0 timer, IRQ1 keyboard, IRQ2 cascade
     out PIC1_DATA, al
-    mov al, 0xFF
+    mov al, 0xEF             ; unmask IRQ12 mouse on the slave PIC
     out PIC2_DATA, al
     ret
 
@@ -824,6 +842,72 @@ io_wait:
     xor al, al
     out 0x80, al
     pop eax
+    ret
+
+init_ps2_mouse:
+    ; Enable the auxiliary PS/2 device and start mouse streaming.
+    call ps2_wait_input
+    mov al, 0xA8             ; enable auxiliary device
+    out 0x64, al
+
+    call ps2_wait_input
+    mov al, 0x20             ; read controller command byte
+    out 0x64, al
+    call ps2_wait_output
+    in al, 0x60
+    or al, 00000010b         ; enable IRQ12
+    and al, 11011111b        ; enable mouse clock
+    mov bl, al
+
+    call ps2_wait_input
+    mov al, 0x60             ; write controller command byte
+    out 0x64, al
+    call ps2_wait_input
+    mov al, bl
+    out 0x60, al
+
+    mov al, 0xF6             ; defaults
+    call mouse_send_command
+    mov al, 0xF4             ; enable data reporting
+    call mouse_send_command
+
+    mov byte [mouse_enabled], 1
+    ret
+
+mouse_send_command:
+    push eax
+    call ps2_wait_input
+    mov al, 0xD4
+    out 0x64, al
+    call ps2_wait_input
+    pop eax
+    out 0x60, al
+    call ps2_wait_output
+    in al, 0x60              ; ACK, ignored for now
+    ret
+
+ps2_wait_input:
+    push ecx
+    mov ecx, 100000
+.wait:
+    in al, 0x64
+    test al, 00000010b
+    jz .done
+    loop .wait
+.done:
+    pop ecx
+    ret
+
+ps2_wait_output:
+    push ecx
+    mov ecx, 100000
+.wait:
+    in al, 0x64
+    test al, 00000001b
+    jnz .done
+    loop .wait
+.done:
+    pop ecx
     ret
 
 isr_timer:
@@ -848,6 +932,98 @@ isr_keyboard:
     out PIC1_CMD, al
     popa
     iretd
+
+isr_mouse:
+    pusha
+    inc dword [mouse_irq_count]
+    in al, 0x60
+    call mouse_process_byte
+    mov al, 0x20
+    out PIC2_CMD, al
+    out PIC1_CMD, al
+    popa
+    iretd
+
+mouse_process_byte:
+    push ebx
+    push ecx
+
+    mov bl, [mouse_packet_index]
+    cmp bl, 0
+    jne .store
+
+    ; First byte must have bit 3 set. Otherwise we are out of sync.
+    test al, 00001000b
+    jz .done
+
+.store:
+    xor ebx, ebx
+    mov bl, [mouse_packet_index]
+    mov [mouse_packet + ebx], al
+    inc byte [mouse_packet_index]
+    cmp byte [mouse_packet_index], 3
+    jb .done
+
+    mov byte [mouse_packet_index], 0
+    inc dword [mouse_packet_count]
+
+    ; X movement, signed 8-bit.
+    movsx eax, byte [mouse_packet + 1]
+    add [mouse_x], eax
+    call clamp_mouse_x
+
+    ; PS/2 Y is positive upward; screen Y is positive downward.
+    movsx eax, byte [mouse_packet + 2]
+    neg eax
+    add [mouse_y], eax
+    call clamp_mouse_y
+
+    mov al, [mouse_packet]
+    and al, 00000111b
+    mov [mouse_buttons], al
+
+    test al, 00000001b
+    jz .left_released
+    cmp byte [mouse_left_down], 1
+    je .mark_update
+    mov byte [mouse_left_down], 1
+    mov byte [mouse_left_click], 1
+    jmp .mark_update
+
+.left_released:
+    mov byte [mouse_left_down], 0
+
+.mark_update:
+    mov byte [mouse_updated], 1
+
+.done:
+    pop ecx
+    pop ebx
+    ret
+
+clamp_mouse_x:
+    cmp dword [mouse_x], 0
+    jge .check_max
+    mov dword [mouse_x], 0
+    ret
+.check_max:
+    cmp dword [mouse_x], MOUSE_MAX_X
+    jle .done
+    mov dword [mouse_x], MOUSE_MAX_X
+.done:
+    ret
+
+clamp_mouse_y:
+    cmp dword [mouse_y], 0
+    jge .check_max
+    mov dword [mouse_y], 0
+    ret
+.check_max:
+    cmp dword [mouse_y], MOUSE_MAX_Y
+    jle .done
+    mov dword [mouse_y], MOUSE_MAX_Y
+.done:
+    ret
 
 isr_default:
     pusha
@@ -1555,16 +1731,80 @@ print_file_list:
     popa
     ret
 
+print_mouse_info:
+    pusha
+    mov esi, mouse_header_text
+    call print_string
+
+    mov esi, mouse_state_text
+    call print_string
+    cmp byte [mouse_enabled], 1
+    je .enabled
+    mov esi, off_text
+    call print_string
+    jmp .state_done
+.enabled:
+    mov esi, on_text
+    call print_string
+.state_done:
+    call print_newline
+
+    mov esi, mouse_x_text
+    call print_string
+    mov eax, [mouse_x]
+    call print_dec
+    mov esi, mouse_y_text
+    call print_string
+    mov eax, [mouse_y]
+    call print_dec
+    call print_newline
+
+    mov esi, mouse_buttons_text
+    call print_string
+    movzx eax, byte [mouse_buttons]
+    call print_dec
+    call print_newline
+
+    mov esi, mouse_irq_text
+    call print_string
+    mov eax, [mouse_irq_count]
+    call print_dec
+    call print_newline
+
+    mov esi, mouse_packets_text
+    call print_string
+    mov eax, [mouse_packet_count]
+    call print_dec
+    call print_newline
+    call print_newline
+    popa
+    ret
+
 file_explorer:
     pusha
     mov byte [explorer_selected], 0
     mov byte [explorer_exit], 0
+    mov byte [mouse_updated], 1
 
 .render:
     call render_file_explorer
 
 .wait_key:
-    call read_char
+    call serial_read_char
+    cmp al, 0
+    jne .handle_key
+
+    call keyboard_buffer_pop
+    cmp al, 0
+    jne .handle_key
+
+    cmp byte [mouse_updated], 0
+    jne .handle_mouse
+
+    hlt
+    jmp .wait_key
+
+.handle_key:
     call lower_char
 
     cmp al, 'q'
@@ -1594,6 +1834,12 @@ file_explorer:
     je .open
 
     jmp .wait_key
+
+.handle_mouse:
+    call explorer_handle_mouse
+    cmp byte [explorer_exit], 1
+    je .quit
+    jmp .render
 
 .up:
     cmp byte [explorer_selected], 0
@@ -1648,6 +1894,7 @@ render_file_explorer:
 
     mov esi, explorer_footer_text
     call print_string
+    call render_mouse_cursor
     popa
     ret
 
@@ -1670,6 +1917,65 @@ explorer_print_item:
     mov esi, explorer_file_suffix
     call print_string
     pop esi
+    ret
+
+explorer_handle_mouse:
+    pusha
+    mov byte [mouse_updated], 0
+
+    mov eax, [mouse_y]
+    shr eax, 3               ; convert pixels to VGA text row
+    cmp eax, FILE_LIST_START_ROW
+    jb .consume_click
+
+    sub eax, FILE_LIST_START_ROW
+    cmp eax, FILE_COUNT
+    jae .consume_click
+
+    mov [explorer_selected], al
+    cmp byte [mouse_left_click], 1
+    jne .done
+    mov byte [mouse_left_click], 0
+    call explorer_open_selected
+    jmp .done
+
+.consume_click:
+    cmp byte [mouse_left_click], 1
+    jne .done
+    mov byte [mouse_left_click], 0
+
+.done:
+    popa
+    ret
+
+render_mouse_cursor:
+    pusha
+    mov eax, [mouse_y]
+    shr eax, 3
+    cmp eax, VGA_HEIGHT - 1
+    jle .y_ok
+    mov eax, VGA_HEIGHT - 1
+.y_ok:
+    mov ecx, eax             ; row
+
+    mov eax, [mouse_x]
+    shr eax, 3
+    cmp eax, VGA_WIDTH - 1
+    jle .x_ok
+    mov eax, VGA_WIDTH - 1
+.x_ok:
+    mov ebx, eax             ; column
+
+    mov eax, ecx
+    mov edx, VGA_WIDTH
+    mul edx
+    add eax, ebx
+    shl eax, 1
+    mov edi, VIDEO_MEMORY
+    add edi, eax
+    mov ax, (0xF0 << 8) | '*'
+    mov [edi], ax
+    popa
     ret
 
 explorer_open_selected:
@@ -1854,6 +2160,10 @@ input_len dd 0
 timer_ticks dd 0
 keyboard_irq_count dd 0
 keyboard_char_count dd 0
+mouse_irq_count dd 0
+mouse_packet_count dd 0
+mouse_x dd 320
+mouse_y dd 100
 paging_enabled dd 0
 heap_next dd HEAP_START
 temp_value dd 0
@@ -1863,12 +2173,19 @@ mmap_ptr dd 0
 current_char db 0
 shift_down db 0
 keyboard_layout db KEYBOARD_LAYOUT_FR
+mouse_packet_index db 0
+mouse_buttons db 0
+mouse_left_down db 0
+mouse_left_click db 0
+mouse_updated db 0
+mouse_enabled db 0
 explorer_selected db 0
 explorer_exit db 0
 kbd_head db 0
 kbd_tail db 0
 dec_buffer times 11 db 0
 cpu_vendor times 13 db 0
+mouse_packet times 3 db 0
 kbd_buffer times KBD_BUFFER_SIZE db 0
 
 input_buffer times INPUT_MAX db 0
@@ -1882,6 +2199,7 @@ cmd_version db 'version', 0
 cmd_uptime  db 'uptime', 0
 cmd_cpu     db 'cpu', 0
 cmd_irq     db 'irq', 0
+cmd_mouse   db 'mouse', 0
 cmd_heap    db 'heap', 0
 cmd_alloc   db 'alloc', 0
 cmd_mmap    db 'mmap', 0
@@ -1895,13 +2213,13 @@ cmd_fichiers db 'fichiers', 0
 
 banner:
     db '========================================', 10
-    db ' AstraOS 0.0.5 Navigator', 10
+    db ' AstraOS 0.0.6 Pointer', 10
     db ' 32-bit protected mode kernel', 10
     db ' Open source MIT - black and white', 10
     db ' Keyboard: IRQ1 FR AZERTY by default', 10
     db ' Interrupts: IDT/PIC/PIT online', 10
     db ' Memory: BIOS E820 map + tiny heap', 10
-    db ' Files: interactive RAM explorer', 10
+    db ' Files: mouse-driven RAM explorer', 10
     db '========================================', 10, 10
     db 'Type help to begin.', 10, 10, 0
 
@@ -1921,6 +2239,7 @@ help_text:
     db '  alloc    Allocate a 256-byte demo block', 10
     db '  cpu      Show CPUID vendor/features', 10
     db '  irq      Show interrupt counters', 10
+    db '  mouse    Show PS/2 mouse status', 10
     db '  ls       List RAM files', 10
     db '  explorer Interactive RAM file explorer', 10
     db '  files    Alias for explorer', 10
@@ -1940,13 +2259,14 @@ about_text:
     db 'protected mode, starts IRQ-driven input, a timer, memory map,', 10
     db 'paging, a RAM file explorer, and a tiny shell. Light, modular, AI-ready.', 10, 10, 0
 
-version_text db 'AstraOS 0.0.5 Navigator - kernel32', 10, 10, 0
+version_text db 'AstraOS 0.0.6 Pointer - kernel32', 10, 10, 0
 
 mem_header_text db 'Memory status:', 10, 0
 mem_mode_text:
     db '  CPU mode : 32-bit protected mode', 10
     db '  Timer    : PIT IRQ0 at 100 Hz', 10
     db '  Keyboard : IRQ1 ring buffer', 10
+    db '  Mouse    : IRQ12 PS/2 pointer', 10
     db '  Paging   : identity map first 4 MiB', 10
     db '  Idle     : HLT sleep between IRQs', 10
     db '  Kernel   : fixed low-memory image loaded at 0x10000', 10, 0
@@ -2021,6 +2341,13 @@ irq_keyboard_text db '  keyboard IRQs : ', 0
 irq_chars_text db '  chars queued  : ', 0
 irq_buffer_text db '  buffer head   : ', 0
 irq_tail_text db ' tail: ', 0
+mouse_header_text db 'Mouse status:', 10, 0
+mouse_state_text db '  state   : ', 0
+mouse_x_text db '  x       : ', 0
+mouse_y_text db ' y: ', 0
+mouse_buttons_text db '  buttons : ', 0
+mouse_irq_text db '  IRQ12   : ', 0
+mouse_packets_text db '  packets : ', 0
 mmap_header_text db 'BIOS E820 memory map:', 10, 0
 mmap_none_text db '  No E820 map provided by the bootloader.', 10, 0
 mmap_entry_text db '  #', 0
@@ -2037,12 +2364,12 @@ kbd_usage_text db 'Usage: kbd, kbd fr, or kbd us.', 10, 10, 0
 explorer_header_text:
     db '========================================', 10
     db ' AstraOS File Explorer', 10
-    db ' RAM filesystem /', 10
+    db ' RAM filesystem /   Mouse enabled', 10
     db '========================================', 10, 10
     db 'Files:', 10, 0
 explorer_footer_text:
     db 10
-    db 'Controls: z/k=up  s/j=down  Enter/o=open  q=quit', 10, 0
+    db 'Controls: mouse click=open  z/k=up  s/j=down  Enter/o=open  q=quit', 10, 0
 explorer_view_footer_text:
     db 10
     db 'Controls: b/Enter=back  q=quit explorer', 10, 0
