@@ -98,6 +98,8 @@ explorer
 files
 explorateur
 fichiers
+gui
+desktop
 cat readme
 echo hello
 ai
@@ -148,10 +150,12 @@ status   Résumé rapide du système
 heap     Affiche l'allocateur mémoire minimal
 alloc    Alloue un bloc de test de 256 octets
 ls       Liste les fichiers RAM intégrés
-explorer Ouvre le premier explorateur de fichiers
+explorer Ouvre le premier explorateur graphique
 files    Alias de explorer
 explorateur Alias FR de explorer
 fichiers Alias FR de explorer
+gui      Lance l interface graphique
+desktop  Alias de gui
 cat NAME Affiche un fichier RAM
 ai mem   Suggère des commandes selon un sujet
 ```
@@ -160,7 +164,7 @@ ai mem   Suggère des commandes selon un sujet
 
 ### Explorateur de fichiers
 
-AstraOS possède maintenant un premier explorateur de fichiers en mode texte :
+AstraOS possède maintenant une première interface graphique VGA 320x200 centrée sur l explorateur de fichiers :
 
 ```txt
 explorer
@@ -183,7 +187,7 @@ z / k       Monter
 s / j       Descendre
 Entrée / o  Ouvrir le fichier sélectionné
 b / Entrée  Retour depuis un fichier
-q           Quitter l'explorateur
+q           Redémarrer pour revenir au shell texte
 ```
 
 Tu peux vérifier la souris avec :
@@ -192,9 +196,9 @@ Tu peux vérifier la souris avec :
 mouse
 ```
 
-Dans QEMU, clique dans la fenêtre pour capturer la souris. Selon l'interface QEMU, `Ctrl` + `Alt` + `G` peut libérer la souris.
+Dans QEMU, clique dans la fenêtre pour capturer la souris. Selon l'interface QEMU, `Ctrl` + `Alt` + `G` peut libérer la souris. Le mode graphique est visible avec `make run`; en `make run-headless`, la sortie reste surtout utile pour le shell série.
 
-Pour l'instant, il explore le système de fichiers RAM intégré au kernel. La souris est une première implémentation PS/2 en IRQ12. La prochaine étape sera un vrai stockage disque et une interface graphique plus complète.
+Pour l'instant, il explore le système de fichiers RAM intégré au kernel. La souris est une première implémentation PS/2 en IRQ12. Le mode graphique est encore volontairement simple : VGA mode 13h, fenêtres dessinées à la main, curseur logiciel. La prochaine étape sera un vrai stockage disque et une interface graphique plus complète.
 
 ---
 

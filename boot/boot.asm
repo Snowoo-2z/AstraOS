@@ -123,6 +123,11 @@ load_kernel:
     popa
 
     add bx, 512
+    jnc .same_segment
+    mov ax, es
+    add ax, 0x1000
+    mov es, ax
+.same_segment:
     inc cl
     cmp cl, 19         ; 1.44 MiB floppy: sectors 1..18
     jne .next_sector
