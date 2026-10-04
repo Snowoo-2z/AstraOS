@@ -4,6 +4,7 @@
 ASM ?= nasm
 QEMU ?= qemu-system-i386
 QEMU_KEYBOARD ?= fr
+QEMU_FLAGS ?= -no-reboot -no-shutdown
 
 BUILD_DIR := build
 BOOT_SRC := boot/boot.asm
@@ -48,11 +49,11 @@ $(IMAGE): $(BOOT_BIN) $(KERNEL_BIN)
 	@echo "Kernel size: $$(wc -c < $(KERNEL_BIN)) bytes / $$(( $(KERNEL_SECTORS) * 512 )) bytes loaded."
 
 run: doctor $(IMAGE)
-	$(QEMU) -drive file=$(IMAGE),format=raw,if=floppy -boot a -m 32M -k $(QEMU_KEYBOARD)
+	$(QEMU) -drive file=$(IMAGE),format=raw,if=floppy -boot a -m 32M -k $(QEMU_KEYBOARD) $(QEMU_FLAGS)
 
 # Useful on WSL/SSH/no-GUI machines. Output is mirrored to serial and input works over serial.
 run-headless: doctor $(IMAGE)
-	$(QEMU) -drive file=$(IMAGE),format=raw,if=floppy -boot a -m 32M -display none -serial mon:stdio
+	$(QEMU) -drive file=$(IMAGE),format=raw,if=floppy -boot a -m 32M -display none -serial mon:stdio $(QEMU_FLAGS)
 
 doctor:
 	@command -v $(ASM) >/dev/null 2>&1 || { echo "Missing: $(ASM). Install with: sudo apt install nasm"; exit 1; }

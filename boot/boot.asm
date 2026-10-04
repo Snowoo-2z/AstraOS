@@ -113,13 +113,13 @@ load_kernel:
 
 .read_sector:
     pusha
-    mov ax, KERNEL_SEGMENT
-    mov es, ax
+    push es
     mov ah, 0x02       ; BIOS read sectors
     mov al, 0x01       ; one sector at a time keeps CHS simple
     mov dl, [boot_drive]
     int 0x13
     jc disk_error
+    pop es
     popa
 
     add bx, 512
