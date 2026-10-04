@@ -54,7 +54,7 @@ make run-headless
 
 ## ✅ État actuel
 
-AstraOS démarre maintenant avec :
+AstraOS **0.0.2 Pulse** démarre maintenant avec :
 
 - un **bootloader 16-bit** de 512 octets ;
 - un passage en **32-bit protected mode** ;
@@ -62,6 +62,10 @@ AstraOS démarre maintenant avec :
 - un écran texte VGA noir/blanc ;
 - une sortie série pour le mode headless ;
 - un clavier **FR AZERTY** par défaut, avec option US QWERTY ;
+- une **IDT** minimale ;
+- un **PIC** remappé ;
+- un timer **PIT 100 Hz** ;
+- une boucle d'attente avec `HLT` pour éviter de brûler du CPU ;
 - un petit shell interactif.
 
 Commandes disponibles dans l'OS :
@@ -70,6 +74,7 @@ Commandes disponibles dans l'OS :
 help
 about
 version
+uptime
 mem
 ai
 kbd
@@ -97,6 +102,16 @@ Côté QEMU graphique, `make run` lance aussi QEMU avec `-k fr` par défaut. Pou
 
 ```bash
 make run QEMU_KEYBOARD=en-us
+```
+
+### Timer système
+
+Le noyau installe maintenant une IDT, remappe le PIC et configure le PIT à environ 100 Hz.
+
+Dans AstraOS :
+
+```txt
+uptime   Affiche le temps depuis le boot via le timer PIT
 ```
 
 ---
@@ -165,9 +180,9 @@ Donc la base actuelle est volontairement simple, rapide et compréhensible.
 
 ### Phase 2 — Vrai noyau
 
-- [ ] IDT et interruptions
-- [ ] Timer système
-- [ ] Pilote clavier plus propre
+- [x] IDT et interruptions
+- [x] Timer système PIT 100 Hz
+- [ ] Pilote clavier par interruptions
 - [ ] Détection mémoire BIOS/E820
 - [ ] Allocateur mémoire simple
 

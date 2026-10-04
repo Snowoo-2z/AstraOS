@@ -11,7 +11,20 @@ VGA_HEIGHT   equ 25
 VGA_ATTR     equ 0x0F          ; white on black
 INPUT_MAX    equ 96
 COM1         equ 0x3F8
+CODE_SEG     equ 0x08
 DATA_SEG     equ 0x10
+
+IDT_ENTRIES      equ 256
+IDT_FLAGS        equ 0x8E
+PIT_FREQUENCY_HZ equ 100
+PIT_DIVISOR      equ 11932
+
+PIC1_CMD  equ 0x20
+PIC1_DATA equ 0x21
+PIC2_CMD  equ 0xA0
+PIC2_DATA equ 0xA1
+PIT_CMD   equ 0x43
+PIT_CH0   equ 0x40
 
 KEYBOARD_LAYOUT_FR equ 0
 KEYBOARD_LAYOUT_US equ 1
@@ -29,6 +42,7 @@ kernel_entry:
     mov esp, 0x90000
 
     call serial_init
+    call setup_interrupts
     call clear_screen
 
     mov esi, banner
@@ -139,6 +153,12 @@ execute_command:
     cmp eax, 1
     je .version
 
+    mov esi, input_buffer
+    mov edi, cmd_uptime
+    call string_equals
+    cmp eax, 1
+    je .uptime
+
     call is_kbd_command
     cmp eax, 1
     je .kbd
@@ -179,6 +199,10 @@ execute_command:
 .version:
     mov esi, version_text
     call print_string
+    jmp .done
+
+.uptime:
+    call print_uptime
     jmp .done
 
 .kbd:
@@ -302,6 +326,144 @@ execute_kbd_command:
     call print_string
     ret
 
+; ------------------------------------------------------------
+; Interrupt Descriptor Table + timer IRQ
+; ------------------------------------------------------------
+setup_interrupts:
+    call setup_idt
+    call remap_pic
+    call init_pit
+    sti
+    ret
+
+setup_idt:
+    pusha
+
+    mov edi, idt
+    mov ecx, IDT_ENTRIES * 8
+    xor eax, eax
+    rep stosb
+
+    xor ebx, ebx
+.all_entries:
+    mov eax, isr_default
+    call set_idt_entry
+    inc ebx
+    cmp ebx, IDT_ENTRIES
+    jb .all_entries
+
+    xor ebx, ebx
+.exception_entries:
+    mov eax, isr_exception
+    call set_idt_entry
+    inc ebx
+    cmp ebx, 32
+    jb .exception_entries
+
+    mov ebx, 32              ; IRQ0 after PIC remap
+    mov eax, isr_timer
+    call set_idt_entry
+
+    lidt [idt_descriptor]
+    popa
+    ret
+
+; eax = handler address, ebx = vector index
+set_idt_entry:
+    push edx
+    push edi
+
+    mov edi, idt
+    mov edx, ebx
+    shl edx, 3
+    add edi, edx
+
+    mov word [edi], ax
+    mov word [edi + 2], CODE_SEG
+    mov byte [edi + 4], 0
+    mov byte [edi + 5], IDT_FLAGS
+    shr eax, 16
+    mov word [edi + 6], ax
+
+    pop edi
+    pop edx
+    ret
+
+remap_pic:
+    mov al, 0x11
+    out PIC1_CMD, al
+    call io_wait
+    out PIC2_CMD, al
+    call io_wait
+
+    mov al, 0x20             ; master PIC vectors: 32..39
+    out PIC1_DATA, al
+    call io_wait
+    mov al, 0x28             ; slave PIC vectors: 40..47
+    out PIC2_DATA, al
+    call io_wait
+
+    mov al, 0x04             ; slave is on IRQ2
+    out PIC1_DATA, al
+    call io_wait
+    mov al, 0x02
+    out PIC2_DATA, al
+    call io_wait
+
+    mov al, 0x01             ; 8086/88 mode
+    out PIC1_DATA, al
+    call io_wait
+    out PIC2_DATA, al
+    call io_wait
+
+    mov al, 0xFE             ; unmask IRQ0 timer only
+    out PIC1_DATA, al
+    mov al, 0xFF
+    out PIC2_DATA, al
+    ret
+
+init_pit:
+    mov al, 0x36             ; channel 0, lobyte/hibyte, mode 3
+    out PIT_CMD, al
+    mov ax, PIT_DIVISOR      ; 1193182 / 11932 ~= 100 Hz
+    out PIT_CH0, al
+    mov al, ah
+    out PIT_CH0, al
+    ret
+
+io_wait:
+    push eax
+    xor al, al
+    out 0x80, al
+    pop eax
+    ret
+
+isr_timer:
+    pusha
+    inc dword [timer_ticks]
+    mov al, 0x20
+    out PIC1_CMD, al
+    popa
+    iretd
+
+isr_default:
+    pusha
+    mov al, 0x20
+    out PIC2_CMD, al
+    out PIC1_CMD, al
+    popa
+    iretd
+
+isr_exception:
+    cli
+    pusha
+    mov esi, exception_text
+    call print_string
+    popa
+.halt:
+    hlt
+    jmp .halt
+
 reboot_system:
 .wait_controller:
     in al, 0x64
@@ -326,6 +488,8 @@ read_char:
     cmp al, 0
     jne .done
 
+    ; Sleep until the next timer interrupt instead of burning CPU.
+    hlt
     jmp .poll
 .done:
     ret
@@ -484,6 +648,57 @@ print_string:
 .done:
     ret
 
+print_uptime:
+    pusha
+    mov esi, uptime_prefix
+    call print_string
+
+    mov eax, [timer_ticks]
+    xor edx, edx
+    mov ebx, PIT_FREQUENCY_HZ
+    div ebx
+    call print_dec
+
+    mov esi, uptime_seconds_text
+    call print_string
+
+    mov eax, [timer_ticks]
+    call print_dec
+
+    mov esi, uptime_ticks_suffix
+    call print_string
+    popa
+    ret
+
+print_dec:
+    pusha
+    cmp eax, 0
+    jne .convert
+    mov al, '0'
+    call put_char
+    jmp .done
+
+.convert:
+    mov edi, dec_buffer + 10
+    mov byte [edi], 0
+    mov ebx, 10
+
+.next_digit:
+    xor edx, edx
+    div ebx
+    dec edi
+    add dl, '0'
+    mov [edi], dl
+    test eax, eax
+    jnz .next_digit
+
+    mov esi, edi
+    call print_string
+
+.done:
+    popa
+    ret
+
 put_char:
     pusha
     mov [current_char], al
@@ -606,9 +821,11 @@ update_cursor:
 cursor_x dd 0
 cursor_y dd 0
 input_len dd 0
+timer_ticks dd 0
 current_char db 0
 shift_down db 0
 keyboard_layout db KEYBOARD_LAYOUT_FR
+dec_buffer times 11 db 0
 
 input_buffer times INPUT_MAX db 0
 
@@ -618,13 +835,15 @@ cmd_clear   db 'clear', 0
 cmd_reboot  db 'reboot', 0
 cmd_mem     db 'mem', 0
 cmd_version db 'version', 0
+cmd_uptime  db 'uptime', 0
 
 banner:
     db '========================================', 10
-    db ' AstraOS 0.0.1 First Light', 10
+    db ' AstraOS 0.0.2 Pulse', 10
     db ' 32-bit protected mode kernel', 10
     db ' Open source MIT - black and white', 10
     db ' Keyboard: FR AZERTY by default', 10
+    db ' Interrupts: IDT/PIC/PIT timer online', 10
     db '========================================', 10, 10
     db 'Type help to begin.', 10, 10, 0
 
@@ -635,6 +854,7 @@ help_text:
     db '  help     Show this help', 10
     db '  about    What AstraOS is', 10
     db '  version  Show version', 10
+    db '  uptime   Show timer ticks since boot', 10
     db '  mem      Memory philosophy', 10
     db '  ai       Local AI concept stub', 10
     db '  kbd      Show keyboard layout', 10
@@ -649,11 +869,13 @@ about_text:
     db 'protected mode, then starts a minimal command shell.', 10
     db 'Goal: stay light in RAM, modular, and ready for AI tooling later.', 10, 10, 0
 
-version_text db 'AstraOS 0.0.1 First Light - kernel32', 10, 10, 0
+version_text db 'AstraOS 0.0.2 Pulse - kernel32', 10, 10, 0
 
 mem_text:
     db 'Memory status:', 10
     db '  CPU mode : 32-bit protected mode', 10
+    db '  Timer    : PIT IRQ0 at 100 Hz', 10
+    db '  Idle     : HLT sleep between polls', 10
     db '  Kernel   : fixed low-memory image loaded at 0x10000', 10
     db '  Heap     : not enabled yet', 10
     db '  Design   : tiny kernel first, optional AI layer later', 10, 10, 0
@@ -663,6 +885,11 @@ ai_text:
     db 'I am not a real model yet: no wasted RAM, no cloud dependency.', 10
     db 'Next steps: intent parser, command suggestions, then optional model bridge.', 10
     db 'For now, try: help, mem, clear, version.', 10, 10, 0
+
+uptime_prefix db 'Uptime: ', 0
+uptime_seconds_text db 's (ticks: ', 0
+uptime_ticks_suffix db ')', 10, 10, 0
+exception_text db 'AstraOS kernel panic: CPU exception. System halted.', 10, 0
 
 kbd_current_fr_text db 'Keyboard layout: FR AZERTY. Use kbd us to switch.', 10, 10, 0
 kbd_current_us_text db 'Keyboard layout: US QWERTY. Use kbd fr to switch.', 10, 10, 0
@@ -722,3 +949,11 @@ keymap_us_shift:
     db 0, '|'
     db 'Z','X','C','V','B','N','M','<','>','?'
     db 0,'*',0,' '
+
+
+; Interrupt Descriptor Table storage.
+align 8
+idt times IDT_ENTRIES * 8 db 0
+idt_descriptor:
+    dw IDT_ENTRIES * 8 - 1
+    dd idt
