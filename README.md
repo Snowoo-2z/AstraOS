@@ -1,31 +1,195 @@
-AstroOS
+# AstraOS
 
-OpenSource.
-For install : 
+**AstraOS** est un mini système d'exploitation x86 open source, développé *from scratch* pour apprendre comment un OS démarre vraiment.
 
-Un système d'exploitation x86 minimaliste développé à partir de zéro (*from scratch*).
+Objectif du projet : un OS **léger en RAM**, noir/blanc, modulaire, avec une future couche **AstraAI** qui aide l'utilisateur sans alourdir le noyau.
 
-## 💻 Compatibilité et Environnement
-
-Cet OS tourne en **mode réel (x86 16-bit)** et est conçu pour s'exécuter dans un environnement d'émulation :
-
-* **Émulateur recommandé :** QEMU (`qemu-system-x86_64`)
-* **Architecture cible :** x86 (Intel / AMD)
-* **Système hôte supporté :** Linux (Ubuntu / WSL2 sous Windows)
+Licence : **MIT**. Dépôt public : <https://github.com/Snowoo-2z/AstraOS>
 
 ---
 
-## 🛠️ Prérequis
+## 🚀 Lancement en une ligne
 
-Installe les outils requis sur ton système Linux / WSL :
+Sur Ubuntu / Debian avec interface graphique :
+
+```bash
+git clone https://github.com/Snowoo-2z/AstraOS.git && cd AstraOS && sudo apt update && sudo apt install -y make nasm qemu-system-x86 && make run
+```
+
+Sur WSL2 / SSH / environnement sans interface graphique :
+
+```bash
+git clone https://github.com/Snowoo-2z/AstraOS.git && cd AstraOS && sudo apt update && sudo apt install -y make nasm qemu-system-x86 && make run-headless
+```
+
+Si tu as déjà cloné le projet :
+
+```bash
+make run
+```
+
+Si tu es en SSH, WSL sans interface graphique, ou environnement headless :
+
+```bash
+make run-headless
+```
+
+---
+
+## ✅ État actuel
+
+AstraOS démarre maintenant avec :
+
+- un **bootloader 16-bit** de 512 octets ;
+- un passage en **32-bit protected mode** ;
+- un mini **kernel 32-bit** ;
+- un écran texte VGA noir/blanc ;
+- une sortie série pour le mode headless ;
+- un petit shell interactif.
+
+Commandes disponibles dans l'OS :
+
+```txt
+help
+about
+version
+mem
+ai
+clear
+reboot
+```
+
+La commande `ai` est volontairement une base légère pour l'instant : pas encore de vrai modèle IA, pour éviter de consommer beaucoup de RAM trop tôt.
+
+---
+
+## 🛠️ Prérequis manuels
+
+Si tu ne veux pas utiliser la commande complète plus haut :
 
 ```bash
 sudo apt update
-sudo apt install -y nasm qemu-system-x86
+sudo apt install -y make nasm qemu-system-x86
+```
 
+Puis :
 
---- 
+```bash
+make run
+```
 
-Couleur du future OS : 
+Tu peux vérifier les outils avec :
 
-Noir, et un accent blanc.
+```bash
+make doctor
+```
+
+---
+
+## 📁 Structure du projet
+
+```txt
+boot/
+  boot.asm       Bootloader x86 16-bit, charge le kernel et passe en protected mode
+kernel/
+  kernel.asm     Kernel 32-bit minimal + shell
+Makefile         Build, image disque, lancement QEMU
+LICENSE          Licence MIT
+README.md        Documentation du projet
+```
+
+---
+
+## 🧠 Pourquoi 32-bit et pas directement 64-bit ?
+
+Pour apprendre proprement, AstraOS démarre en 16-bit comme un PC x86 classique, puis passe en **32-bit protected mode**.
+
+Le 64-bit viendra plus tard, car il demande d'ajouter :
+
+- des tables de pages ;
+- le long mode ;
+- une initialisation CPU plus stricte ;
+- une architecture mémoire plus solide.
+
+Donc la base actuelle est volontairement simple, rapide et compréhensible.
+
+---
+
+## 🗺️ Roadmap
+
+### Phase 1 — Base bootable
+
+- [x] Bootloader 512 octets
+- [x] Image disque QEMU
+- [x] Passage en 32-bit protected mode
+- [x] Kernel texte minimal
+- [x] Shell de base
+
+### Phase 2 — Vrai noyau
+
+- [ ] IDT et interruptions
+- [ ] Timer système
+- [ ] Pilote clavier plus propre
+- [ ] Détection mémoire BIOS/E820
+- [ ] Allocateur mémoire simple
+
+### Phase 3 — Stockage et fichiers
+
+- [ ] Lecture disque plus robuste
+- [ ] Système de fichiers minimal
+- [ ] Chargement de fichiers/programmes
+
+### Phase 4 — Sécurité et comptes
+
+Les comptes utilisateurs ne sont **pas** la première étape. Il faudra d'abord avoir un système de fichiers, des permissions et une séparation kernel/userland.
+
+- [ ] Mode utilisateur
+- [ ] Processus
+- [ ] Permissions
+- [ ] Comptes
+
+### Phase 5 — AstraAI
+
+AstraAI doit rester hors du noyau pour garder l'OS fiable et léger.
+
+Idées :
+
+- assistant de commandes ;
+- explication des erreurs ;
+- suggestions système ;
+- pont optionnel vers un modèle local ou distant ;
+- aucun modèle lourd chargé par défaut.
+
+---
+
+## 🧹 Commandes utiles
+
+Construire l'image :
+
+```bash
+make
+```
+
+Lancer dans QEMU :
+
+```bash
+make run
+```
+
+Lancer sans interface graphique :
+
+```bash
+make run-headless
+```
+
+Nettoyer :
+
+```bash
+make clean
+```
+
+---
+
+## 🤝 Contribution
+
+Le projet est open source. Les contributions sont bienvenues : idées, bugs, documentation, drivers, shell, mémoire, IA, etc.
