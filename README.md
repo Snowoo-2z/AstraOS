@@ -54,7 +54,7 @@ make run-headless
 
 ## ✅ État actuel
 
-AstraOS **0.0.7 Modular** démarre maintenant avec :
+AstraOS **0.0.8 Desktop** démarre maintenant avec :
 
 - un **bootloader 16-bit** de 512 octets ;
 - un passage en **32-bit protected mode** ;
@@ -71,7 +71,8 @@ AstraOS **0.0.7 Modular** démarre maintenant avec :
 - une pagination 32-bit avec identity-map des premiers **4 MiB** ;
 - un mini allocateur mémoire type **bump allocator** ;
 - un mini système de fichiers RAM en lecture seule ;
-- un premier **explorateur de fichiers** interactif avec pointeur souris PS/2 ;
+- un premier **bureau graphique** monochrome avec barre des tâches et fenêtres ;
+- un **explorateur de fichiers** interactif avec pointeur souris PS/2 ;
 - un assistant `ai` local basé sur des règles ;
 - des infos souris via IRQ12 ;
 - des infos CPU via **CPUID** ;
@@ -154,40 +155,49 @@ explorer Ouvre le premier explorateur graphique
 files    Alias de explorer
 explorateur Alias FR de explorer
 fichiers Alias FR de explorer
-gui      Lance l interface graphique
-desktop  Alias de gui
+gui      Lance le bureau graphique
+desktop  Lance le bureau graphique
 cat NAME Affiche un fichier RAM
 ai mem   Suggère des commandes selon un sujet
 ```
 
 `alloc` n'est pas encore un malloc complet : c'est une première base de gestion mémoire, volontairement simple et prévisible.
 
-### Explorateur de fichiers
+### Premier bureau graphique
 
-AstraOS possède maintenant une première interface graphique VGA 320x200 centrée sur l explorateur de fichiers :
+AstraOS possède maintenant un premier bureau VGA 320x200 avec une barre des tâches, un bouton Astra, des icônes et de petites fenêtres :
+
+```txt
+desktop
+```
+
+Les commandes `gui` et `desktop` ouvrent le bureau. Les commandes suivantes ouvrent directement le bureau avec la fenêtre Files :
 
 ```txt
 explorer
-```
-
-Alias :
-
-```txt
 files
 explorateur
 fichiers
 ```
 
-Contrôles dans l'explorateur :
+Éléments disponibles sur le bureau :
+
+- icône **FILES** : ouvre l'explorateur graphique ;
+- icône **ABOUT** : ouvre les informations d'AstraOS ;
+- bouton **ASTRA** : ouvre la fenêtre Files ;
+- bouton **X** : ferme la fenêtre active ;
+- barre des tâches monochrome en bas de l'écran.
+
+Contrôles graphiques :
 
 ```txt
 Souris      Déplacer le pointeur
-Clic gauche Ouvrir le fichier sous le pointeur
-z / k       Monter
-s / j       Descendre
-Entrée / o  Ouvrir le fichier sélectionné
+Clic gauche Ouvrir une icône ou fermer une fenêtre
+e           Ouvrir la fenêtre Files
+1 à 4       Ouvrir directement un fichier
+Échap       Fermer la fenêtre active
 c           Recentrer le curseur AstraOS
-b / Entrée  Retour depuis un fichier
+b / Entrée  Retour depuis le lecteur de fichier
 q           Redémarrer pour revenir au shell texte
 ```
 
@@ -205,7 +215,7 @@ Dans QEMU, clique dans la fenêtre pour capturer la souris. Selon l'interface QE
 
 Le rendu graphique utilise maintenant un backbuffer en RAM avant de copier l'image vers la VRAM, ce qui réduit fortement les effets de dessin blanc/flicker. Le driver souris PS/2 est relatif : si tu vois encore le curseur Windows/Linux en plus de celui d'AstraOS, utilise `Ctrl` + `Alt` + `G`, reclique dans QEMU, ou appuie sur `c` dans la GUI pour recentrer le curseur AstraOS.
 
-Pour l'instant, il explore le système de fichiers RAM intégré au kernel. La souris est une première implémentation PS/2 en IRQ12. Le mode graphique est encore volontairement simple : VGA mode 13h, fenêtres dessinées à la main, curseur logiciel. La prochaine étape sera un vrai stockage disque et une interface graphique plus complète.
+Pour l'instant, le bureau et son mini gestionnaire de fenêtres sont dessinés directement par le kernel. L'explorateur parcourt le système de fichiers RAM intégré. La souris est une première implémentation PS/2 en IRQ12. Le mode graphique reste volontairement léger : VGA mode 13h, fenêtres dessinées à la main et curseur logiciel. Les prochaines étapes seront des fenêtres déplaçables, un vrai stockage disque et davantage d'applications.
 
 ---
 

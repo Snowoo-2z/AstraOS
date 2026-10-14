@@ -41,7 +41,8 @@ mouse_left_down db 0
 mouse_left_click db 0
 mouse_updated db 0
 mouse_enabled db 0
-gui_hover db 255
+gui_hover db GUI_HOVER_NONE
+gui_window_open db GUI_WINDOW_NONE
 gui_icon_index db 0
 rect_color db 0
 text_color db 0
@@ -84,7 +85,7 @@ cmd_desktop db 'desktop', 0
 
 banner:
     db '========================================', 10
-    db ' AstraOS 0.0.7 Modular', 10
+    db ' AstraOS 0.0.8 Desktop', 10
     db ' 32-bit protected mode kernel', 10
     db ' Open source MIT - black and white', 10
     db ' Keyboard: IRQ1 FR AZERTY by default', 10
@@ -132,7 +133,7 @@ about_text:
     db 'protected mode, starts IRQ-driven input, a timer, memory map,', 10
     db 'paging, a RAM file explorer, and a tiny shell. Light, modular, AI-ready.', 10, 10, 0
 
-version_text db 'AstraOS 0.0.7 Modular - kernel32', 10, 10, 0
+version_text db 'AstraOS 0.0.8 Desktop - kernel32', 10, 10, 0
 
 mem_header_text db 'Memory status:', 10, 0
 mem_mode_text:
@@ -234,9 +235,21 @@ kbd_set_fr_text db 'Keyboard switched to FR AZERTY.', 10, 10, 0
 kbd_set_us_text db 'Keyboard switched to US QWERTY.', 10, 10, 0
 kbd_usage_text db 'Usage: kbd, kbd fr, or kbd us.', 10, 10, 0
 
-gui_title_text db 'ASTRAOS GUI', 0
+gui_desktop_brand db 'ASTRA OS', 0
+gui_desktop_tagline db 'LIGHT. LOCAL. YOURS.', 0
+gui_files_label db 'FILES', 0
+gui_about_label db 'ABOUT', 0
+gui_start_label db 'ASTRA', 0
+gui_task_status db '32 BIT', 0
 gui_window_title_text db 'FILES', 0
-gui_footer_text db 'MOUSE CLICK OPEN  C CENTER  Q REBOOT', 0
+gui_files_status db '4 FILES - CLICK TO OPEN', 0
+gui_close_label db 'X', 0
+gui_about_title db 'ABOUT ASTRAOS', 0
+gui_about_line1 db 'ASTRAOS 0.0.8 DESKTOP', 0
+gui_about_line2 db '32 BIT X86 FROM SCRATCH', 0
+gui_about_line3 db 'BLACK WHITE AND LIGHT', 0
+gui_about_line4 db 'OPEN SOURCE MIT', 0
+gui_about_hint db 'ESC OR X TO CLOSE', 0
 gui_viewer_title db 'FILE VIEWER', 0
 gui_viewer_footer db 'CLICK OR ENTER BACK  Q REBOOT', 0
 gui_readme_label db 'README', 0

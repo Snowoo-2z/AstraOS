@@ -129,13 +129,13 @@ execute_command:
     mov edi, cmd_gui
     call string_equals
     cmp eax, 1
-    je .explorer
+    je .desktop
 
     mov esi, input_buffer
     mov edi, cmd_desktop
     call string_equals
     cmp eax, 1
-    je .explorer
+    je .desktop
 
     call is_cat_command
     cmp eax, 1
@@ -228,6 +228,10 @@ execute_command:
 
 .explorer:
     call gui_explorer
+    jmp .done
+
+.desktop:
+    call gui_desktop
     jmp .done
 
 .cat:
