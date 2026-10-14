@@ -18,7 +18,7 @@ Cette liste garde le développement concret, progressif et testable. Une case co
 - [x] Horloge d'uptime dans la barre des tâches
 - [x] Huit fichiers RAM visibles dans l'explorateur
 - [x] Déplacement des fenêtres à la souris
-- [ ] Boutons réduire et agrandir
+- [x] Boutons réduire, restaurer et agrandir
 - [ ] Focus et ordre d'empilement des fenêtres
 - [ ] Retour au shell sans redémarrer
 - [ ] Résolution graphique supérieure via VBE ou GOP
@@ -87,9 +87,9 @@ Cette liste garde le développement concret, progressif et testable. Une case co
 - [x] Fenêtre About
 - [ ] Menu Astra
 - [ ] Terminal graphique
-- [ ] Bloc-notes
+- [x] Bloc-notes RAM graphique minimal
 - [ ] Calculatrice
-- [ ] Moniteur système
+- [x] Moniteur système graphique en direct
 - [ ] Paramètres clavier et souris
 - [ ] Sélecteur de thème
 - [ ] Notifications

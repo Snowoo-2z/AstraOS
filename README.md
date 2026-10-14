@@ -54,7 +54,7 @@ make run-headless
 
 ## ✅ État actuel
 
-AstraOS **0.1.0 Workspace** démarre maintenant avec :
+AstraOS **0.1.2 DeskApps** démarre maintenant avec :
 
 - un **bootloader 16-bit** de 512 octets ;
 - un passage en **32-bit protected mode** ;
@@ -70,9 +70,10 @@ AstraOS **0.1.0 Workspace** démarre maintenant avec :
 - une détection mémoire BIOS **E820** ;
 - une pagination 32-bit avec identity-map des premiers **4 MiB** ;
 - un mini allocateur mémoire type **bump allocator** ;
-- un mini système de fichiers RAM en lecture seule ;
+- un mini système de fichiers RAM avec une note éditable ;
 - un premier **bureau graphique** monochrome avec barre des tâches et fenêtres ;
-- un **menu Astra** avec Files, About et Reboot ;
+- un **menu Astra** avec Files, System, Notepad, About et Reboot ;
+- un bloc-notes graphique RAM et un moniteur système en direct ;
 - un compteur d'uptime dans la barre des tâches ;
 - un **explorateur de fichiers** avec 8 fichiers RAM et souris absolue QEMU VMMouse ;
 - un assistant `ai` local basé sur des règles ;
@@ -186,9 +187,12 @@ fichiers
 
 - icône **FILES** : ouvre l'explorateur graphique ;
 - icône **ABOUT** : ouvre les informations d'AstraOS ;
-- bouton **ASTRA** : ouvre un menu avec Files, About et Reboot ;
+- icône **SYSTEM** : affiche uptime, timer, IRQ clavier, souris et heap ;
+- icône **NOTES** : ouvre un bloc-notes RAM éditable ;
+- bouton **ASTRA** : ouvre un menu avec Files, System, Notepad, About et Reboot ;
 - fenêtres déplaçables en maintenant le clic sur leur barre de titre ;
-- bouton **X** : ferme la fenêtre active ;
+- boutons `-`, `*` et `X` pour réduire, agrandir/restaurer et fermer ;
+- fenêtre réduite récupérable depuis la barre des tâches ;
 - explorateur sur deux rangées avec `readme`, `roadmap`, `ai`, `license`, `system`, `commands`, `notes` et `credits` ;
 - compteur d'uptime dans la barre des tâches monochrome.
 
@@ -206,6 +210,8 @@ b / Entrée  Retour depuis le lecteur de fichier
 q           Redémarrer pour revenir au shell texte
 ```
 
+Dans **Notepad**, tape simplement au clavier. `Retour arrière` efface et `Échap` ferme la fenêtre. La note reste en RAM et devient visible dans le fichier `notes` de l'explorateur jusqu'au prochain redémarrage.
+
 Tu peux vérifier la souris avec :
 
 ```txt
@@ -220,7 +226,7 @@ Dans QEMU, clique dans la fenêtre pour capturer la souris. Selon l'interface QE
 
 Le rendu graphique utilise un backbuffer en RAM avant de copier l'image vers la VRAM, ce qui réduit fortement les effets de dessin blanc/flicker. La commande `mouse` indique `absolute VMMouse` lorsque la synchronisation hôte fonctionne. Si elle indique `relative PS/2 fallback`, AstraOS continue de fonctionner mais la position peut être moins naturelle.
 
-Pour l'instant, le bureau et son mini gestionnaire de fenêtres sont dessinés directement par le kernel. L'explorateur parcourt le système de fichiers RAM intégré. VMMouse fournit les coordonnées absolues via le port hyperviseur, tandis que l'IRQ12 PS/2 signale les événements et reste disponible en secours. Le mode graphique reste volontairement léger : VGA mode 13h, fenêtres dessinées à la main et curseur logiciel. Les prochaines étapes seront la réduction/agrandissement des fenêtres, un vrai stockage disque et davantage d'applications.
+Pour l'instant, le bureau et son mini gestionnaire de fenêtres sont dessinés directement par le kernel. L'explorateur parcourt le système de fichiers RAM intégré. VMMouse fournit les coordonnées absolues via le port hyperviseur, tandis que l'IRQ12 PS/2 signale les événements et reste disponible en secours. Le mode graphique reste volontairement léger : VGA mode 13h, fenêtres dessinées à la main et curseur logiciel. Les prochaines étapes seront le terminal graphique, un vrai stockage disque, le focus multi-fenêtres et davantage d'applications.
 
 ---
 

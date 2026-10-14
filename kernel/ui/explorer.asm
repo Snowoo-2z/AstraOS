@@ -256,8 +256,7 @@ explorer_open_selected:
     call print_string
     jmp .wait
 .notes:
-    mov esi, fs_notes_text
-    call print_string
+    call print_note_file
     jmp .wait
 .credits:
     mov esi, fs_credits_text

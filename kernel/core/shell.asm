@@ -446,8 +446,7 @@ execute_cat_command:
     call print_string
     ret
 .notes:
-    mov esi, fs_notes_text
-    call print_string
+    call print_note_file
     ret
 .credits:
     mov esi, fs_credits_text
@@ -456,6 +455,21 @@ execute_cat_command:
 .usage:
     mov esi, cat_usage_text
     call print_string
+    ret
+
+print_note_file:
+    mov esi, fs_notes_header
+    call print_string
+    cmp byte [gui_note_len], 0
+    jne .content
+    mov esi, fs_notes_empty
+    call print_string
+    ret
+.content:
+    mov esi, gui_note_buffer
+    call print_string
+    call print_newline
+    call print_newline
     ret
 
 execute_echo_command:

@@ -21,6 +21,10 @@ gfx_target dd GUI_BACKBUFFER
 gui_last_clock_tick dd 0
 gui_window_x dd 70
 gui_window_y dd 18
+gui_window_w dd 238
+gui_window_h dd 150
+gui_restore_x dd 70
+gui_restore_y dd 18
 gui_drag_offset_x dd 0
 gui_drag_offset_y dd 0
 gfx_number_x dd 0
@@ -54,6 +58,9 @@ gui_hover db GUI_HOVER_NONE
 gui_window_open db GUI_WINDOW_NONE
 gui_menu_open db 0
 gui_window_dragging db 0
+gui_window_maximized db 0
+gui_minimized_window db GUI_WINDOW_NONE
+gui_note_len db 0
 gui_icon_index db 0
 rect_color db 0
 text_color db 0
@@ -66,6 +73,7 @@ kbd_head db 0
 kbd_tail db 0
 dec_buffer times 11 db 0
 gfx_number_buffer times 11 db 0
+gui_note_buffer times GUI_NOTE_MAX + 1 db 0
 cpu_vendor times 13 db 0
 mouse_packet times 3 db 0
 kbd_buffer times KBD_BUFFER_SIZE db 0
@@ -97,7 +105,7 @@ cmd_desktop db 'desktop', 0
 
 banner:
     db '========================================', 10
-    db ' AstraOS 0.1.0 Workspace', 10
+    db ' AstraOS 0.1.2 DeskApps', 10
     db ' 32-bit protected mode kernel', 10
     db ' Open source MIT - black and white', 10
     db ' Keyboard: IRQ1 FR AZERTY by default', 10
@@ -145,7 +153,7 @@ about_text:
     db 'protected mode, starts IRQ-driven input, a timer, memory map,', 10
     db 'paging, a RAM file explorer, and a tiny shell. Light, modular, AI-ready.', 10, 10, 0
 
-version_text db 'AstraOS 0.1.0 Workspace - kernel32', 10, 10, 0
+version_text db 'AstraOS 0.1.2 DeskApps - kernel32', 10, 10, 0
 
 mem_header_text db 'Memory status:', 10, 0
 mem_mode_text:
@@ -256,20 +264,32 @@ gui_files_label db 'FILES', 0
 gui_about_label db 'ABOUT', 0
 gui_start_label db 'ASTRA', 0
 gui_task_uptime db 'UP', 0
-gui_task_seconds db 'S', 0
 gui_menu_title db 'ASTRA MENU', 0
 gui_menu_files db 'FILES', 0
+gui_menu_system db 'SYSTEM', 0
+gui_menu_notes db 'NOTEPAD', 0
 gui_menu_about db 'ABOUT', 0
 gui_menu_reboot db 'REBOOT', 0
 gui_window_title_text db 'FILES', 0
 gui_files_status db '8 RAM FILES', 0
 gui_close_label db 'X', 0
+gui_maximize_label db '*', 0
+gui_minimize_label db '-', 0
 gui_about_title db 'ABOUT ASTRAOS', 0
-gui_about_line1 db 'ASTRAOS 0.1.0 WORKSPACE', 0
+gui_about_line1 db 'ASTRAOS 0.1.2 DESKAPPS', 0
 gui_about_line2 db '32 BIT X86 FROM SCRATCH', 0
 gui_about_line3 db 'BLACK WHITE AND LIGHT', 0
 gui_about_line4 db 'OPEN SOURCE MIT', 0
 gui_about_hint db 'ESC OR X TO CLOSE', 0
+gui_system_title db 'SYSTEM MONITOR', 0
+gui_system_uptime db 'UPTIME SECONDS', 0
+gui_system_ticks db 'TIMER TICKS', 0
+gui_system_keyboard db 'KEYBOARD IRQS', 0
+gui_system_mouse db 'MOUSE PACKETS', 0
+gui_system_heap db 'HEAP USED BYTES', 0
+gui_notepad_title db 'NOTEPAD', 0
+gui_notepad_hint db 'TYPE  BACKSPACE  ESC CLOSE', 0
+gui_notepad_empty db 'START TYPING...', 0
 gui_viewer_title db 'FILE VIEWER', 0
 gui_viewer_footer db 'CLICK OR ENTER BACK  Q REBOOT', 0
 gui_readme_label db 'README', 0
@@ -291,15 +311,12 @@ gui_ai_line2 db 'LOCAL COMMAND HELPER FIRST', 0
 gui_ai_line3 db 'NO HEAVY MODEL IN KERNEL', 0
 gui_license_line1 db 'MIT OPEN SOURCE', 0
 gui_license_line2 db 'SNW 2026', 0
-gui_system_line1 db 'ASTRAOS 0.1.0 WORKSPACE', 0
+gui_system_line1 db 'ASTRAOS 0.1.2 DESKAPPS', 0
 gui_system_line2 db '32 BIT X86 KERNEL', 0
 gui_system_line3 db 'VMMOUSE AND VGA ONLINE', 0
 gui_commands_line1 db 'DESKTOP EXPLORER STATUS', 0
 gui_commands_line2 db 'MEM CPU IRQ MOUSE AI', 0
 gui_commands_line3 db 'HELP SHOWS EVERY COMMAND', 0
-gui_notes_line1 db 'RAM NOTES ARE READ ONLY', 0
-gui_notes_line2 db 'TEXT EDITOR IS PLANNED', 0
-gui_notes_line3 db 'PERSISTENCE COMES LATER', 0
 gui_credits_line1 db 'CREATED BY SNW', 0
 gui_credits_line2 db 'NASM MAKE AND QEMU', 0
 gui_credits_line3 db 'OPEN SOURCE MIT', 0
@@ -408,16 +425,14 @@ fs_ai_text:
 fs_license_text db 'license: MIT open source.', 10, 10, 0
 fs_system_text:
     db 'system:', 10
-    db '  AstraOS 0.1.0 Workspace, x86 protected mode, 32-bit kernel.', 10
+    db '  AstraOS 0.1.2 DeskApps, x86 protected mode, 32-bit kernel.', 10
     db '  VGA desktop, absolute mouse, paging, E820 and 100 Hz timer.', 10, 10, 0
 fs_commands_text:
     db 'commands:', 10
     db '  desktop explorer ls cat mouse mem cpu irq status ai reboot', 10
     db '  Type help in the shell for the complete command list.', 10, 10, 0
-fs_notes_text:
-    db 'notes:', 10
-    db '  This RAM file is read-only for now.', 10
-    db '  A small graphical text editor is planned next.', 10, 10, 0
+fs_notes_header db 'notes:', 10, 0
+fs_notes_empty db '  Empty. Open NOTEPAD on the desktop to write a RAM note.', 10, 10, 0
 fs_credits_text:
     db 'credits:', 10
     db '  AstraOS is an open-source learning OS created by Snw.', 10
