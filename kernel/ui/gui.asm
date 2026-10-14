@@ -925,15 +925,26 @@ gui_restore_cursor_background:
 .restore_row:
     cmp dword [rect_row], 13
     jae .done
+
+    ; The cursor hotspot can now reach x=319/y=199. Restore only the visible
+    ; part of its old dirty rectangle so rows never wrap or leave VRAM.
     mov eax, [gui_cursor_prev_y]
     add eax, [rect_row]
-    imul eax, 320
+    cmp eax, GUI_HEIGHT
+    jae .done
+    imul eax, GUI_WIDTH
     add eax, [gui_cursor_prev_x]
     mov esi, GUI_BACKBUFFER
     add esi, eax
     mov edi, GUI_VRAM
     add edi, eax
+
+    mov ecx, GUI_WIDTH
+    sub ecx, [gui_cursor_prev_x]
+    cmp ecx, 12
+    jbe .width_ready
     mov ecx, 12
+.width_ready:
     rep movsb
     inc dword [rect_row]
     jmp .restore_row
@@ -2393,19 +2404,55 @@ vga_set_astra_palette:
 
 gfx_fill_rect:
     pusha
+
+    ; Clip every rectangle to the framebuffer. This is especially important
+    ; for the software cursor: its hotspot may sit on the final pixel while
+    ; the rest of the 12x13 shape naturally falls outside the screen.
+    mov eax, [rect_x]
+    test eax, eax
+    js .done
+    cmp eax, GUI_WIDTH
+    jae .done
+    mov edx, GUI_WIDTH
+    sub edx, eax
+    mov ecx, [rect_w]
+    cmp ecx, edx
+    jbe .width_ready
+    mov ecx, edx
+.width_ready:
+    test ecx, ecx
+    jz .done
+    mov [rect_clip_w], ecx
+
+    mov eax, [rect_y]
+    test eax, eax
+    js .done
+    cmp eax, GUI_HEIGHT
+    jae .done
+    mov edx, GUI_HEIGHT
+    sub edx, eax
+    mov ecx, [rect_h]
+    cmp ecx, edx
+    jbe .height_ready
+    mov ecx, edx
+.height_ready:
+    test ecx, ecx
+    jz .done
+    mov [rect_clip_h], ecx
+
     mov dword [rect_row], 0
 .row:
     mov eax, [rect_row]
-    cmp eax, [rect_h]
+    cmp eax, [rect_clip_h]
     jae .done
 
     mov eax, [rect_y]
     add eax, [rect_row]
-    imul eax, 320
+    imul eax, GUI_WIDTH
     add eax, [rect_x]
     mov edi, [gfx_target]
     add edi, eax
-    mov ecx, [rect_w]
+    mov ecx, [rect_clip_w]
     mov al, [rect_color]
     rep stosb
 

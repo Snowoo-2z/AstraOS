@@ -88,5 +88,6 @@ Prochaines améliorations :
 - Aucun flottant, aucune allocation dynamique pendant le rendu.
 - Le rendu complet est copié vers la VRAM en une passe de 16 000 doubles mots.
 - Le backbuffer reste sans curseur afin de servir de fond propre.
-- Un mouvement ordinaire restaure seulement une zone sale de `12x13` pixels avant de recomposer le curseur directement en VRAM.
+- Un mouvement ordinaire restaure seulement la partie visible d'une zone sale de `12x13` pixels avant de recomposer le curseur directement en VRAM.
+- Le hotspot couvre `0..319` et `0..199`; tous les rectangles du curseur sont découpés aux limites du framebuffer pour éviter le retour à la ligne mémoire sur les bords.
 - Un rendu complet n'est demandé que lorsqu'une fenêtre, un survol, un menu ou une donnée visible change.

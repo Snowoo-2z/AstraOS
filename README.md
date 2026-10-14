@@ -62,7 +62,7 @@ make run-headless
 
 ## ✅ État actuel
 
-AstraOS **0.4.0 Desktop** démarre maintenant avec :
+AstraOS **0.4.1 Pointer** démarre maintenant avec :
 
 - un **bootloader 16-bit** de 512 octets ;
 - un passage en **32-bit protected mode** ;
@@ -83,7 +83,7 @@ AstraOS **0.4.0 Desktop** démarre maintenant avec :
 - une session QEMU **plein écran par défaut**, avec une commande séparée pour le mode fenêtré ;
 - le bureau Aurora avec palette VGA personnalisée noir/bleu/blanc ;
 - un écran de démarrage graphique, des icônes différenciées et un curseur redessiné ;
-- un rendu souris optimisé par zone sale de `12x13` pixels au lieu de redessiner tout l'écran ;
+- un rendu souris optimisé par zone sale de `12x13` pixels, avec hotspot capable d'atteindre les quatre bords ;
 - un **menu Astra** avec Files, Terminal, System, Notepad, About et Reboot ;
 - un terminal graphique interactif, un bloc-notes RAM et un moniteur système en direct ;
 - une vraie horloge `HH:MM` lue depuis le RTC CMOS dans la barre des tâches ;
@@ -260,7 +260,7 @@ Dans QEMU, `Ctrl` + `Alt` + `G` peut libérer la souris et `Ctrl` + `Alt` + `F` 
 
 `make run` utilise aussi `-no-reboot -no-shutdown` pour garder la fenêtre ouverte si le noyau plante : ça aide à lire le message au lieu de voir QEMU disparaître.
 
-Le rendu graphique utilise un backbuffer en RAM avant de copier l'image vers la VRAM. Pour un simple déplacement, AstraOS restaure uniquement l'ancien rectangle du curseur (`12x13` pixels) puis dessine sa nouvelle position directement en VRAM : le bureau complet de 64 000 pixels n'est plus reconstruit à chaque paquet souris. La commande `mouse` indique `absolute VMMouse` lorsque la synchronisation hôte fonctionne. Si elle indique `relative PS/2 fallback`, AstraOS continue de fonctionner mais la position peut être moins naturelle.
+Le rendu graphique utilise un backbuffer en RAM avant de copier l'image vers la VRAM. Pour un simple déplacement, AstraOS restaure uniquement la partie visible de l'ancien rectangle du curseur (`12x13` pixels) puis dessine sa nouvelle position directement en VRAM : le bureau complet de 64 000 pixels n'est plus reconstruit à chaque paquet souris. Le hotspot couvre maintenant réellement les coordonnées `0..319` et `0..199`; le corps du curseur est découpé proprement lorsqu'il dépasse sur les bords droit ou inférieur. La commande `mouse` indique `absolute VMMouse` lorsque la synchronisation hôte fonctionne. Si elle indique `relative PS/2 fallback`, AstraOS continue de fonctionner mais la position peut être moins naturelle.
 
 Pour l'instant, le bureau et son mini gestionnaire de fenêtres sont dessinés directement par le kernel. L'explorateur parcourt le système de fichiers RAM intégré. VMMouse fournit les coordonnées absolues via le port hyperviseur, tandis que l'IRQ12 PS/2 signale les événements et reste disponible en secours. Le mode graphique reste volontairement léger : VGA mode 13h, fenêtres dessinées à la main et curseur logiciel. Les prochaines étapes seront un vrai stockage disque, le focus multi-fenêtres, une calculatrice graphique et davantage d'applications.
 

@@ -34,8 +34,12 @@ KEYBOARD_LAYOUT_FR equ 0
 KEYBOARD_LAYOUT_US equ 1
 FILE_COUNT equ 8
 FILE_LIST_START_ROW equ 6
-MOUSE_MAX_X equ 308
-MOUSE_MAX_Y equ 187
+GUI_WIDTH equ 320
+GUI_HEIGHT equ 200
+; The pointer hotspot may reach every edge pixel. Cursor drawing is clipped to
+; the framebuffer instead of stopping 12/13 pixels early.
+MOUSE_MAX_X equ GUI_WIDTH - 1
+MOUSE_MAX_Y equ GUI_HEIGHT - 1
 MOUSE_SCALE equ 1
 
 ; QEMU/VMware VMMouse backdoor. QEMU PC machines expose this by default and

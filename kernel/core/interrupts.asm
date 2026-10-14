@@ -357,6 +357,9 @@ vmmouse_read_events:
     test esi, VMMOUSE_RELATIVE_PACKET
     jnz .relative
 
+    ; Map the absolute hotspot across the complete framebuffer. Rendering clips
+    ; the cursor body at the right/bottom edges, so the hotspot itself can
+    ; genuinely reach the final pixel.
     ; x = host_x * MOUSE_MAX_X / 65535
     mov eax, ebx
     mov edx, MOUSE_MAX_X

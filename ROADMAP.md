@@ -36,6 +36,7 @@ Cette liste garde le développement concret, progressif et testable. Une case co
 - [x] Explorateur avec cartes de documents
 - [x] Curseur logiciel avec contour et ombre
 - [x] Rendu rapide du curseur par zone sale 12x13
+- [x] Curseur bord-à-bord avec clipping sûr sur les quatre limites
 - [x] Menu Astra et barre des tâches harmonisés
 - [ ] Police bitmap plus grande avec minuscules et accents
 - [ ] Animations d'ouverture et réduction
