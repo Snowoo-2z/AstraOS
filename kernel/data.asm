@@ -9,7 +9,7 @@ keyboard_irq_count dd 0
 keyboard_char_count dd 0
 mouse_irq_count dd 0
 mouse_packet_count dd 0
-mouse_x dd 320
+mouse_x dd 160
 mouse_y dd 100
 paging_enabled dd 0
 heap_next dd HEAP_START
@@ -41,6 +41,8 @@ mouse_left_down db 0
 mouse_left_click db 0
 mouse_updated db 0
 mouse_enabled db 0
+vmmouse_enabled db 0
+vmmouse_read_budget db 0
 gui_hover db GUI_HOVER_NONE
 gui_window_open db GUI_WINDOW_NONE
 gui_icon_index db 0
@@ -85,7 +87,7 @@ cmd_desktop db 'desktop', 0
 
 banner:
     db '========================================', 10
-    db ' AstraOS 0.0.8 Desktop', 10
+    db ' AstraOS 0.0.9 Absolute', 10
     db ' 32-bit protected mode kernel', 10
     db ' Open source MIT - black and white', 10
     db ' Keyboard: IRQ1 FR AZERTY by default', 10
@@ -133,7 +135,7 @@ about_text:
     db 'protected mode, starts IRQ-driven input, a timer, memory map,', 10
     db 'paging, a RAM file explorer, and a tiny shell. Light, modular, AI-ready.', 10, 10, 0
 
-version_text db 'AstraOS 0.0.8 Desktop - kernel32', 10, 10, 0
+version_text db 'AstraOS 0.0.9 Absolute - kernel32', 10, 10, 0
 
 mem_header_text db 'Memory status:', 10, 0
 mem_mode_text:
@@ -217,6 +219,9 @@ irq_buffer_text db '  buffer head   : ', 0
 irq_tail_text db ' tail: ', 0
 mouse_header_text db 'Mouse status:', 10, 0
 mouse_state_text db '  state   : ', 0
+mouse_mode_text db '  mode    : ', 0
+mouse_absolute_text db 'absolute VMMouse (host synchronized)', 0
+mouse_relative_text db 'relative PS/2 fallback', 0
 mouse_x_text db '  x       : ', 0
 mouse_y_text db ' y: ', 0
 mouse_buttons_text db '  buttons : ', 0
@@ -245,7 +250,7 @@ gui_window_title_text db 'FILES', 0
 gui_files_status db '4 FILES - CLICK TO OPEN', 0
 gui_close_label db 'X', 0
 gui_about_title db 'ABOUT ASTRAOS', 0
-gui_about_line1 db 'ASTRAOS 0.0.8 DESKTOP', 0
+gui_about_line1 db 'ASTRAOS 0.0.9 ABSOLUTE', 0
 gui_about_line2 db '32 BIT X86 FROM SCRATCH', 0
 gui_about_line3 db 'BLACK WHITE AND LIGHT', 0
 gui_about_line4 db 'OPEN SOURCE MIT', 0

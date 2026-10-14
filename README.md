@@ -54,7 +54,7 @@ make run-headless
 
 ## ✅ État actuel
 
-AstraOS **0.0.8 Desktop** démarre maintenant avec :
+AstraOS **0.0.9 Absolute** démarre maintenant avec :
 
 - un **bootloader 16-bit** de 512 octets ;
 - un passage en **32-bit protected mode** ;
@@ -72,7 +72,7 @@ AstraOS **0.0.8 Desktop** démarre maintenant avec :
 - un mini allocateur mémoire type **bump allocator** ;
 - un mini système de fichiers RAM en lecture seule ;
 - un premier **bureau graphique** monochrome avec barre des tâches et fenêtres ;
-- un **explorateur de fichiers** interactif avec pointeur souris PS/2 ;
+- un **explorateur de fichiers** interactif avec souris absolue QEMU VMMouse et secours PS/2 ;
 - un assistant `ai` local basé sur des règles ;
 - des infos souris via IRQ12 ;
 - des infos CPU via **CPUID** ;
@@ -209,13 +209,13 @@ mouse
 
 Dans QEMU, clique dans la fenêtre pour capturer la souris. Selon l'interface QEMU, `Ctrl` + `Alt` + `G` peut libérer la souris. Le mode graphique est visible avec `make run`; en `make run-headless`, la sortie reste surtout utile pour le shell série.
 
-`make run` masque maintenant le curseur hôte QEMU et force la capture avec `-display gtk,show-cursor=off,grab-on-hover=on`, pour éviter de voir deux souris non synchronisées. Si ton QEMU ne supporte pas GTK, lance avec `make run QEMU_DISPLAY=`.
+`make run` masque le curseur hôte QEMU avec `-display gtk,show-cursor=off`. AstraOS détecte maintenant le périphérique **VMMouse** fourni par QEMU et reçoit des coordonnées absolues : le curseur AstraOS suit directement la position de la souris Windows, même si la fenêtre QEMU est agrandie. Si VMMouse n'est pas disponible, le driver revient automatiquement au mode PS/2 relatif. Si ton QEMU ne supporte pas GTK, lance avec `make run QEMU_DISPLAY=`.
 
 `make run` utilise aussi `-no-reboot -no-shutdown` pour garder la fenêtre ouverte si le noyau plante : ça aide à lire le message au lieu de voir QEMU disparaître.
 
-Le rendu graphique utilise maintenant un backbuffer en RAM avant de copier l'image vers la VRAM, ce qui réduit fortement les effets de dessin blanc/flicker. Le driver souris PS/2 est relatif : si tu vois encore le curseur Windows/Linux en plus de celui d'AstraOS, utilise `Ctrl` + `Alt` + `G`, reclique dans QEMU, ou appuie sur `c` dans la GUI pour recentrer le curseur AstraOS.
+Le rendu graphique utilise un backbuffer en RAM avant de copier l'image vers la VRAM, ce qui réduit fortement les effets de dessin blanc/flicker. La commande `mouse` indique `absolute VMMouse` lorsque la synchronisation hôte fonctionne. Si elle indique `relative PS/2 fallback`, AstraOS continue de fonctionner mais la position peut être moins naturelle.
 
-Pour l'instant, le bureau et son mini gestionnaire de fenêtres sont dessinés directement par le kernel. L'explorateur parcourt le système de fichiers RAM intégré. La souris est une première implémentation PS/2 en IRQ12. Le mode graphique reste volontairement léger : VGA mode 13h, fenêtres dessinées à la main et curseur logiciel. Les prochaines étapes seront des fenêtres déplaçables, un vrai stockage disque et davantage d'applications.
+Pour l'instant, le bureau et son mini gestionnaire de fenêtres sont dessinés directement par le kernel. L'explorateur parcourt le système de fichiers RAM intégré. VMMouse fournit les coordonnées absolues via le port hyperviseur, tandis que l'IRQ12 PS/2 signale les événements et reste disponible en secours. Le mode graphique reste volontairement léger : VGA mode 13h, fenêtres dessinées à la main et curseur logiciel. Les prochaines étapes seront des fenêtres déplaçables, un vrai stockage disque et davantage d'applications.
 
 ---
 

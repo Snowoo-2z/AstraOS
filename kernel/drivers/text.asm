@@ -477,6 +477,19 @@ print_mouse_info:
 .state_done:
     call print_newline
 
+    mov esi, mouse_mode_text
+    call print_string
+    cmp byte [vmmouse_enabled], 1
+    jne .relative_mode
+    mov esi, mouse_absolute_text
+    call print_string
+    jmp .mode_done
+.relative_mode:
+    mov esi, mouse_relative_text
+    call print_string
+.mode_done:
+    call print_newline
+
     mov esi, mouse_x_text
     call print_string
     mov eax, [mouse_x]

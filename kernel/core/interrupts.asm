@@ -147,6 +147,50 @@ init_ps2_mouse:
     call mouse_send_command
 
     mov byte [mouse_enabled], 1
+    call init_vmmouse_absolute
+    ret
+
+; Enable the absolute VMMouse protocol exposed by QEMU PC machines. If the
+; hypervisor does not provide it, AstraOS silently keeps the PS/2 fallback.
+init_vmmouse_absolute:
+    pusha
+    mov byte [vmmouse_enabled], 0
+
+    mov ebx, VMMOUSE_ENABLE
+    mov ecx, VMMOUSE_CMD_COMMAND
+    call vmmouse_hypercall
+
+    xor ebx, ebx
+    mov ecx, VMMOUSE_CMD_STATUS
+    call vmmouse_hypercall
+    mov esi, eax
+    and eax, VMMOUSE_ERROR
+    cmp eax, VMMOUSE_ERROR
+    je .done
+    and esi, 0xFFFF
+    jz .done
+
+    mov ebx, 1
+    mov ecx, VMMOUSE_CMD_DATA
+    call vmmouse_hypercall
+    cmp eax, VMMOUSE_VERSION
+    jne .done
+
+    mov ebx, VMMOUSE_REQUEST_ABSOLUTE
+    mov ecx, VMMOUSE_CMD_COMMAND
+    call vmmouse_hypercall
+    mov byte [vmmouse_enabled], 1
+
+.done:
+    popa
+    ret
+
+; ebx = argument, ecx = command. Outputs follow the VMMouse ABI:
+; eax = status/buttons, ebx = x, ecx = y, edx = wheel.
+vmmouse_hypercall:
+    mov eax, VMMOUSE_MAGIC
+    mov edx, VMMOUSE_PORT
+    in eax, dx
     ret
 
 mouse_send_command:
@@ -240,6 +284,12 @@ mouse_process_byte:
     jb .done
 
     mov byte [mouse_packet_index], 0
+    cmp byte [vmmouse_enabled], 1
+    jne .relative_packet
+    call vmmouse_read_events
+    jmp .done
+
+.relative_packet:
     inc dword [mouse_packet_count]
 
     ; X movement, signed 8-bit.
@@ -276,6 +326,98 @@ mouse_process_byte:
 .done:
     pop ecx
     pop ebx
+    ret
+
+; Drain absolute mouse events from the QEMU VMMouse queue. Host coordinates
+; are normalized to 0..65535, so they remain aligned even when QEMU scales the
+; 320x200 framebuffer to a larger Windows desktop window.
+vmmouse_read_events:
+    pusha
+    mov byte [vmmouse_read_budget], 8
+
+.next_event:
+    xor ebx, ebx
+    mov ecx, VMMOUSE_CMD_STATUS
+    call vmmouse_hypercall
+    mov esi, eax
+    and eax, VMMOUSE_ERROR
+    cmp eax, VMMOUSE_ERROR
+    je .disable
+    mov eax, esi
+    and eax, 0xFFFF
+    cmp eax, 4
+    jb .done
+
+    mov ebx, 4
+    mov ecx, VMMOUSE_CMD_DATA
+    call vmmouse_hypercall
+    mov esi, eax             ; packet flags and buttons
+    mov edi, ecx             ; preserve Y while scaling X
+
+    test esi, VMMOUSE_RELATIVE_PACKET
+    jnz .relative
+
+    ; x = host_x * MOUSE_MAX_X / 65535
+    mov eax, ebx
+    mov edx, MOUSE_MAX_X
+    mul edx
+    mov ebx, 65535
+    div ebx
+    mov [mouse_x], eax
+
+    ; y = host_y * MOUSE_MAX_Y / 65535
+    mov eax, edi
+    mov edx, MOUSE_MAX_Y
+    mul edx
+    mov ebx, 65535
+    div ebx
+    mov [mouse_y], eax
+    jmp .buttons
+
+.relative:
+    add [mouse_x], ebx
+    neg edi
+    add [mouse_y], edi
+    call clamp_mouse_x
+    call clamp_mouse_y
+
+.buttons:
+    xor eax, eax
+    test esi, VMMOUSE_LEFT_BUTTON
+    jz .no_left
+    or al, 00000001b
+.no_left:
+    test esi, VMMOUSE_RIGHT_BUTTON
+    jz .no_right
+    or al, 00000010b
+.no_right:
+    test esi, VMMOUSE_MIDDLE_BUTTON
+    jz .buttons_ready
+    or al, 00000100b
+.buttons_ready:
+    mov [mouse_buttons], al
+
+    test al, 00000001b
+    jz .left_released
+    cmp byte [mouse_left_down], 1
+    je .mark_update
+    mov byte [mouse_left_down], 1
+    mov byte [mouse_left_click], 1
+    jmp .mark_update
+.left_released:
+    mov byte [mouse_left_down], 0
+.mark_update:
+    inc dword [mouse_packet_count]
+    mov byte [mouse_updated], 1
+
+    dec byte [vmmouse_read_budget]
+    jnz .next_event
+    jmp .done
+
+.disable:
+    mov byte [vmmouse_enabled], 0
+.done:
+    popa
     ret
 
 clamp_mouse_x:
