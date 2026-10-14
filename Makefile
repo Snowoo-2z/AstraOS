@@ -11,6 +11,7 @@ QEMU_FLAGS ?= -no-reboot -no-shutdown
 BUILD_DIR := build
 BOOT_SRC := boot/boot.asm
 KERNEL_SRC := kernel/kernel.asm
+KERNEL_MODULES := $(wildcard kernel/include/*.inc kernel/core/*.asm kernel/drivers/*.asm kernel/ui/*.asm kernel/data.asm)
 BOOT_BIN := $(BUILD_DIR)/boot.bin
 KERNEL_BIN := $(BUILD_DIR)/kernel.bin
 IMAGE := $(BUILD_DIR)/astraos.img
@@ -33,8 +34,8 @@ $(BUILD_DIR):
 $(BOOT_BIN): $(BOOT_SRC) | $(BUILD_DIR)
 	$(ASM) -f bin -D KERNEL_SECTORS=$(KERNEL_SECTORS) $< -o $@
 
-$(KERNEL_BIN): $(KERNEL_SRC) | $(BUILD_DIR)
-	$(ASM) -f bin $< -o $@
+$(KERNEL_BIN): $(KERNEL_SRC) $(KERNEL_MODULES) | $(BUILD_DIR)
+	$(ASM) -f bin $(KERNEL_SRC) -o $@
 
 $(IMAGE): $(BOOT_BIN) $(KERNEL_BIN)
 	@kernel_size=$$(wc -c < $(KERNEL_BIN)); \

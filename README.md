@@ -54,11 +54,11 @@ make run-headless
 
 ## ✅ État actuel
 
-AstraOS **0.0.6 Pointer** démarre maintenant avec :
+AstraOS **0.0.7 Modular** démarre maintenant avec :
 
 - un **bootloader 16-bit** de 512 octets ;
 - un passage en **32-bit protected mode** ;
-- un mini **kernel 32-bit** ;
+- un mini **kernel 32-bit modulaire**, séparé en cœur, drivers, interface et données ;
 - un écran texte VGA noir/blanc ;
 - une sortie série pour le mode headless ;
 - un clavier **FR AZERTY** par défaut, avec option US QWERTY ;
@@ -236,13 +236,20 @@ make doctor
 
 ```txt
 boot/
-  boot.asm       Bootloader x86 16-bit, charge le kernel et passe en protected mode
+  boot.asm              Bootloader BIOS 16-bit
 kernel/
-  kernel.asm     Kernel 32-bit minimal + shell
-Makefile         Build, image disque, lancement QEMU
-LICENSE          Licence MIT
-README.md        Documentation du projet
+  kernel.asm            Point d'entrée et assemblage des modules
+  include/config.inc    Constantes partagées
+  core/                 Shell, mémoire et interruptions
+  drivers/              Clavier, souris, série et affichage texte
+  ui/                   Interface graphique et explorateur
+  data.asm              Textes, tables, fontes et données globales
+Makefile                 Build, image disque et lancement QEMU
+LICENSE                  Licence MIT
+README.md                Documentation du projet
 ```
+
+Le noyau produit reste un unique binaire léger : NASM assemble les modules avec `%include`. Les fichiers séparés rendent le projet plus lisible et facilitent les prochaines fonctions sans ajouter de coût en RAM.
 
 ---
 
