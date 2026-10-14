@@ -54,7 +54,7 @@ make run-headless
 
 ## ✅ État actuel
 
-AstraOS **0.2.0 Aurora** démarre maintenant avec :
+AstraOS **0.2.1 Fluid** démarre maintenant avec :
 
 - un **bootloader 16-bit** de 512 octets ;
 - un passage en **32-bit protected mode** ;
@@ -73,6 +73,7 @@ AstraOS **0.2.0 Aurora** démarre maintenant avec :
 - un mini système de fichiers RAM avec une note éditable ;
 - le bureau graphique **Aurora**, avec palette VGA personnalisée noir/bleu/blanc ;
 - un écran de démarrage graphique, des icônes différenciées et un curseur redessiné ;
+- un rendu souris optimisé par zone sale de `12x13` pixels au lieu de redessiner tout l'écran ;
 - un **menu Astra** avec Files, System, Notepad, About et Reboot ;
 - un bloc-notes graphique RAM et un moniteur système en direct ;
 - un compteur d'uptime dans la barre des tâches ;
@@ -230,7 +231,7 @@ Dans QEMU, clique dans la fenêtre pour capturer la souris. Selon l'interface QE
 
 `make run` utilise aussi `-no-reboot -no-shutdown` pour garder la fenêtre ouverte si le noyau plante : ça aide à lire le message au lieu de voir QEMU disparaître.
 
-Le rendu graphique utilise un backbuffer en RAM avant de copier l'image vers la VRAM, ce qui réduit fortement les effets de dessin blanc/flicker. La commande `mouse` indique `absolute VMMouse` lorsque la synchronisation hôte fonctionne. Si elle indique `relative PS/2 fallback`, AstraOS continue de fonctionner mais la position peut être moins naturelle.
+Le rendu graphique utilise un backbuffer en RAM avant de copier l'image vers la VRAM. Pour un simple déplacement, AstraOS restaure uniquement l'ancien rectangle du curseur (`12x13` pixels) puis dessine sa nouvelle position directement en VRAM : le bureau complet de 64 000 pixels n'est plus reconstruit à chaque paquet souris. La commande `mouse` indique `absolute VMMouse` lorsque la synchronisation hôte fonctionne. Si elle indique `relative PS/2 fallback`, AstraOS continue de fonctionner mais la position peut être moins naturelle.
 
 Pour l'instant, le bureau et son mini gestionnaire de fenêtres sont dessinés directement par le kernel. L'explorateur parcourt le système de fichiers RAM intégré. VMMouse fournit les coordonnées absolues via le port hyperviseur, tandis que l'IRQ12 PS/2 signale les événements et reste disponible en secours. Le mode graphique reste volontairement léger : VGA mode 13h, fenêtres dessinées à la main et curseur logiciel. Les prochaines étapes seront le terminal graphique, un vrai stockage disque, le focus multi-fenêtres et davantage d'applications.
 

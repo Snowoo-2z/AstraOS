@@ -33,6 +33,7 @@ Cette liste garde le développement concret, progressif et testable. Une case co
 - [x] Fenêtres avec ombre, barre d'accent et contrôles colorés
 - [x] Explorateur avec cartes de documents
 - [x] Curseur logiciel avec contour et ombre
+- [x] Rendu rapide du curseur par zone sale 12x13
 - [x] Menu Astra et barre des tâches harmonisés
 - [ ] Police bitmap plus grande avec minuscules et accents
 - [ ] Animations d'ouverture et réduction

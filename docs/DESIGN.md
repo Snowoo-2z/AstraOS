@@ -84,3 +84,6 @@ Prochaines améliorations :
 - VRAM : adresse physique `0xA0000`.
 - Aucun flottant, aucune allocation dynamique pendant le rendu.
 - Le rendu complet est copié vers la VRAM en une passe de 16 000 doubles mots.
+- Le backbuffer reste sans curseur afin de servir de fond propre.
+- Un mouvement ordinaire restaure seulement une zone sale de `12x13` pixels avant de recomposer le curseur directement en VRAM.
+- Un rendu complet n'est demandé que lorsqu'une fenêtre, un survol, un menu ou une donnée visible change.

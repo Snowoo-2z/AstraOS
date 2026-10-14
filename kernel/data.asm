@@ -19,6 +19,10 @@ mmap_remaining dd 0
 mmap_ptr dd 0
 gfx_target dd GUI_BACKBUFFER
 gui_last_clock_tick dd 0
+gui_cursor_prev_x dd 160
+gui_cursor_prev_y dd 100
+gui_cursor_draw_x dd 160
+gui_cursor_draw_y dd 100
 gui_window_x dd 70
 gui_window_y dd 18
 gui_window_w dd 238
@@ -55,6 +59,7 @@ mouse_enabled db 0
 vmmouse_enabled db 0
 vmmouse_read_budget db 0
 gui_hover db GUI_HOVER_NONE
+gui_previous_hover db GUI_HOVER_NONE
 gui_window_open db GUI_WINDOW_NONE
 gui_menu_open db 0
 gui_window_dragging db 0
@@ -105,7 +110,7 @@ cmd_desktop db 'desktop', 0
 
 banner:
     db '========================================', 10
-    db ' AstraOS 0.2.0 Aurora', 10
+    db ' AstraOS 0.2.1 Fluid', 10
     db ' 32-bit protected mode kernel', 10
     db ' Open source MIT - black and white', 10
     db ' Keyboard: IRQ1 FR AZERTY by default', 10
@@ -153,7 +158,7 @@ about_text:
     db 'protected mode, starts IRQ-driven input, a timer, memory map,', 10
     db 'paging, a RAM file explorer, and a tiny shell. Light, modular, AI-ready.', 10, 10, 0
 
-version_text db 'AstraOS 0.2.0 Aurora - kernel32', 10, 10, 0
+version_text db 'AstraOS 0.2.1 Fluid - kernel32', 10, 10, 0
 
 mem_header_text db 'Memory status:', 10, 0
 mem_mode_text:
@@ -278,7 +283,7 @@ gui_maximize_label db '*', 0
 gui_minimize_label db '-', 0
 gui_about_title db 'ABOUT ASTRAOS', 0
 gui_about_logo db 'A', 0
-gui_about_line1 db 'ASTRAOS 0.2.0 AURORA', 0
+gui_about_line1 db 'ASTRAOS 0.2.1 FLUID', 0
 gui_about_line2 db '32 BIT X86 FROM SCRATCH', 0
 gui_about_line3 db 'BLACK WHITE AND LIGHT', 0
 gui_about_line4 db 'OPEN SOURCE MIT', 0
@@ -313,7 +318,7 @@ gui_ai_line2 db 'LOCAL COMMAND HELPER FIRST', 0
 gui_ai_line3 db 'NO HEAVY MODEL IN KERNEL', 0
 gui_license_line1 db 'MIT OPEN SOURCE', 0
 gui_license_line2 db 'SNW 2026', 0
-gui_system_line1 db 'ASTRAOS 0.2.0 AURORA', 0
+gui_system_line1 db 'ASTRAOS 0.2.1 FLUID', 0
 gui_system_line2 db '32 BIT X86 KERNEL', 0
 gui_system_line3 db 'VMMOUSE AND VGA ONLINE', 0
 gui_commands_line1 db 'DESKTOP EXPLORER STATUS', 0
@@ -447,7 +452,7 @@ fs_ai_text:
 fs_license_text db 'license: MIT open source.', 10, 10, 0
 fs_system_text:
     db 'system:', 10
-    db '  AstraOS 0.2.0 Aurora, x86 protected mode, 32-bit kernel.', 10
+    db '  AstraOS 0.2.1 Fluid, x86 protected mode, 32-bit kernel.', 10
     db '  VGA desktop, absolute mouse, paging, E820 and 100 Hz timer.', 10, 10, 0
 fs_commands_text:
     db 'commands:', 10

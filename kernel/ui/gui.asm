@@ -60,10 +60,25 @@ gui_enter:
 
 .mouse_event:
     mov byte [mouse_updated], 0
+    mov al, [gui_hover]
+    mov [gui_previous_hover], al
     call gui_update_hover
     call gui_handle_window_drag
+
     cmp byte [mouse_left_click], 1
+    je .mouse_click
+    cmp byte [gui_window_dragging], 1
+    je .gui_loop
+    mov al, [gui_hover]
+    cmp al, [gui_previous_hover]
     jne .gui_loop
+
+    ; The scene did not change: restore only the old cursor rectangle and
+    ; draw the new cursor directly in VRAM instead of rebuilding 64 KiB.
+    call gui_move_cursor_fast
+    jmp .wait_event
+
+.mouse_click:
     mov byte [mouse_left_click], 0
     call gui_activate_hover
     jmp .gui_loop
@@ -709,8 +724,55 @@ gui_render_desktop:
     jne .draw_cursor
     call gui_draw_start_menu
 .draw_cursor:
-    call gfx_draw_cursor
+    ; Keep GUI_BACKBUFFER clean. The cursor is composed directly in VRAM so
+    ; ordinary mouse movement only touches a tiny 12x13 dirty rectangle.
     call gfx_present
+    call gui_draw_cursor_to_vram
+    popa
+    ret
+
+gui_move_cursor_fast:
+    pusha
+    call gui_restore_cursor_background
+    call gui_draw_cursor_to_vram
+    popa
+    ret
+
+gui_restore_cursor_background:
+    pusha
+    mov dword [rect_row], 0
+.restore_row:
+    cmp dword [rect_row], 13
+    jae .done
+    mov eax, [gui_cursor_prev_y]
+    add eax, [rect_row]
+    imul eax, 320
+    add eax, [gui_cursor_prev_x]
+    mov esi, GUI_BACKBUFFER
+    add esi, eax
+    mov edi, GUI_VRAM
+    add edi, eax
+    mov ecx, 12
+    rep movsb
+    inc dword [rect_row]
+    jmp .restore_row
+.done:
+    popa
+    ret
+
+gui_draw_cursor_to_vram:
+    pusha
+    mov eax, [mouse_x]
+    mov [gui_cursor_draw_x], eax
+    mov eax, [mouse_y]
+    mov [gui_cursor_draw_y], eax
+    mov dword [gfx_target], GUI_VRAM
+    call gfx_draw_cursor
+    mov dword [gfx_target], GUI_BACKBUFFER
+    mov eax, [gui_cursor_draw_x]
+    mov [gui_cursor_prev_x], eax
+    mov eax, [gui_cursor_draw_y]
+    mov [gui_cursor_prev_y], eax
     popa
     ret
 
@@ -1623,9 +1685,16 @@ gui_open_hovered_file:
     call keyboard_buffer_pop
     cmp al, 0
     jne .key
+    cmp byte [mouse_updated], 0
+    jne .mouse_event
+    hlt
+    jmp .wait
+
+.mouse_event:
+    mov byte [mouse_updated], 0
     cmp byte [mouse_left_click], 1
     je .mouse_back
-    hlt
+    call gui_move_cursor_fast
     jmp .wait
 
 .mouse_back:
@@ -1825,10 +1894,10 @@ gui_render_viewer:
     mov esi, gui_viewer_footer
     mov ebx, 24
     mov ecx, 166
-    mov dl, 0
+    mov dl, GUI_COLOR_TEXT_DARK
     call gfx_draw_text
-    call gfx_draw_cursor
     call gfx_present
+    call gui_draw_cursor_to_vram
     popa
     ret
 
@@ -1977,10 +2046,10 @@ gfx_draw_cursor:
 .shadow_row:
     cmp dword [glyph_row], 10
     jae .outline_start
-    mov eax, [mouse_x]
+    mov eax, [gui_cursor_draw_x]
     add eax, 2
     mov [rect_x], eax
-    mov eax, [mouse_y]
+    mov eax, [gui_cursor_draw_y]
     add eax, [glyph_row]
     add eax, 2
     mov [rect_y], eax
@@ -1998,9 +2067,9 @@ gfx_draw_cursor:
 .outline_row:
     cmp dword [glyph_row], 10
     jae .inside_start
-    mov eax, [mouse_x]
+    mov eax, [gui_cursor_draw_x]
     mov [rect_x], eax
-    mov eax, [mouse_y]
+    mov eax, [gui_cursor_draw_y]
     add eax, [glyph_row]
     mov [rect_y], eax
     mov eax, [glyph_row]
@@ -2017,10 +2086,10 @@ gfx_draw_cursor:
 .inside_row:
     cmp dword [glyph_row], 8
     jae .tail
-    mov eax, [mouse_x]
+    mov eax, [gui_cursor_draw_x]
     inc eax
     mov [rect_x], eax
-    mov eax, [mouse_y]
+    mov eax, [gui_cursor_draw_y]
     add eax, [glyph_row]
     mov [rect_y], eax
     mov eax, [glyph_row]
@@ -2032,10 +2101,10 @@ gfx_draw_cursor:
 
 .tail:
     mov byte [rect_color], GUI_COLOR_BORDER
-    mov eax, [mouse_x]
+    mov eax, [gui_cursor_draw_x]
     add eax, 3
     mov [rect_x], eax
-    mov eax, [mouse_y]
+    mov eax, [gui_cursor_draw_y]
     add eax, 8
     mov [rect_y], eax
     mov dword [rect_w], 3
@@ -2047,9 +2116,9 @@ gfx_draw_cursor:
     mov dword [rect_h], 4
     call gfx_fill_rect
     mov byte [rect_color], GUI_COLOR_ACCENT
-    mov eax, [mouse_x]
+    mov eax, [gui_cursor_draw_x]
     mov [rect_x], eax
-    mov eax, [mouse_y]
+    mov eax, [gui_cursor_draw_y]
     mov [rect_y], eax
     mov dword [rect_w], 2
     mov dword [rect_h], 2
