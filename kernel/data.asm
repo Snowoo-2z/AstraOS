@@ -66,6 +66,11 @@ gui_window_dragging db 0
 gui_window_maximized db 0
 gui_minimized_window db GUI_WINDOW_NONE
 gui_note_len db 0
+gui_terminal_len db 0
+gui_terminal_output db 0
+rtc_hour db 0
+rtc_minute db 0
+rtc_status_b db 0
 gui_icon_index db 0
 rect_color db 0
 text_color db 0
@@ -79,6 +84,7 @@ kbd_tail db 0
 dec_buffer times 11 db 0
 gfx_number_buffer times 11 db 0
 gui_note_buffer times GUI_NOTE_MAX + 1 db 0
+gui_terminal_buffer times GUI_TERMINAL_MAX + 1 db 0
 cpu_vendor times 13 db 0
 mouse_packet times 3 db 0
 kbd_buffer times KBD_BUFFER_SIZE db 0
@@ -110,7 +116,7 @@ cmd_desktop db 'desktop', 0
 
 banner:
     db '========================================', 10
-    db ' AstraOS 0.2.1 Fluid', 10
+    db ' AstraOS 0.3.0 Terminal', 10
     db ' 32-bit protected mode kernel', 10
     db ' Open source MIT - black and white', 10
     db ' Keyboard: IRQ1 FR AZERTY by default', 10
@@ -158,7 +164,7 @@ about_text:
     db 'protected mode, starts IRQ-driven input, a timer, memory map,', 10
     db 'paging, a RAM file explorer, and a tiny shell. Light, modular, AI-ready.', 10, 10, 0
 
-version_text db 'AstraOS 0.2.1 Fluid - kernel32', 10, 10, 0
+version_text db 'AstraOS 0.3.0 Terminal - kernel32', 10, 10, 0
 
 mem_header_text db 'Memory status:', 10, 0
 mem_mode_text:
@@ -268,10 +274,12 @@ gui_desktop_tagline db 'LIGHT. LOCAL. YOURS.', 0
 gui_splash_loading db 'LOADING DESKTOP', 0
 gui_files_label db 'FILES', 0
 gui_about_label db 'ABOUT', 0
+gui_terminal_label db 'TERMINAL', 0
 gui_start_label db 'ASTRA', 0
-gui_task_uptime db 'UP', 0
+gui_clock_text db '00:00', 0
 gui_menu_title db 'ASTRA MENU', 0
 gui_menu_files db 'FILES', 0
+gui_menu_terminal db 'TERMINAL', 0
 gui_menu_system db 'SYSTEM', 0
 gui_menu_notes db 'NOTEPAD', 0
 gui_menu_about db 'ABOUT', 0
@@ -283,7 +291,7 @@ gui_maximize_label db '*', 0
 gui_minimize_label db '-', 0
 gui_about_title db 'ABOUT ASTRAOS', 0
 gui_about_logo db 'A', 0
-gui_about_line1 db 'ASTRAOS 0.2.1 FLUID', 0
+gui_about_line1 db 'ASTRAOS 0.3.0 TERMINAL', 0
 gui_about_line2 db '32 BIT X86 FROM SCRATCH', 0
 gui_about_line3 db 'BLACK WHITE AND LIGHT', 0
 gui_about_line4 db 'OPEN SOURCE MIT', 0
@@ -297,6 +305,21 @@ gui_system_heap db 'HEAP USED BYTES', 0
 gui_notepad_title db 'NOTEPAD', 0
 gui_notepad_hint db 'TYPE  BACKSPACE  ESC CLOSE', 0
 gui_notepad_empty db 'START TYPING...', 0
+gui_terminal_title db 'ASTRA TERMINAL', 0
+gui_terminal_prompt db 'ASTRA>', 0
+gui_terminal_welcome1 db 'ASTRA TERMINAL READY', 0
+gui_terminal_welcome2 db 'TYPE HELP FOR COMMANDS', 0
+gui_terminal_help1 db 'HELP VERSION UPTIME LS', 0
+gui_terminal_help2 db 'MEM ABOUT CLEAR REBOOT', 0
+gui_terminal_version db 'ASTRAOS 0.3.0 TERMINAL', 0
+gui_terminal_files1 db 'README ROADMAP AI LICENSE', 0
+gui_terminal_files2 db 'SYSTEM COMMANDS NOTES CREDITS', 0
+gui_terminal_about1 db 'A TINY X86 OS FROM SCRATCH', 0
+gui_terminal_about2 db 'AURORA DESKTOP 32 BIT', 0
+gui_terminal_uptime db 'UPTIME SECONDS', 0
+gui_terminal_heap db 'HEAP USED BYTES', 0
+gui_terminal_unknown db 'UNKNOWN COMMAND', 0
+gui_terminal_hint db 'ENTER RUNS  ESC CLOSES', 0
 gui_viewer_title db 'FILE VIEWER', 0
 gui_viewer_footer db 'CLICK OR ENTER BACK  Q REBOOT', 0
 gui_readme_label db 'README', 0
@@ -318,7 +341,7 @@ gui_ai_line2 db 'LOCAL COMMAND HELPER FIRST', 0
 gui_ai_line3 db 'NO HEAVY MODEL IN KERNEL', 0
 gui_license_line1 db 'MIT OPEN SOURCE', 0
 gui_license_line2 db 'SNW 2026', 0
-gui_system_line1 db 'ASTRAOS 0.2.1 FLUID', 0
+gui_system_line1 db 'ASTRAOS 0.3.0 TERMINAL', 0
 gui_system_line2 db '32 BIT X86 KERNEL', 0
 gui_system_line3 db 'VMMOUSE AND VGA ONLINE', 0
 gui_commands_line1 db 'DESKTOP EXPLORER STATUS', 0
@@ -452,7 +475,7 @@ fs_ai_text:
 fs_license_text db 'license: MIT open source.', 10, 10, 0
 fs_system_text:
     db 'system:', 10
-    db '  AstraOS 0.2.1 Fluid, x86 protected mode, 32-bit kernel.', 10
+    db '  AstraOS 0.3.0 Terminal, x86 protected mode, 32-bit kernel.', 10
     db '  VGA desktop, absolute mouse, paging, E820 and 100 Hz timer.', 10, 10, 0
 fs_commands_text:
     db 'commands:', 10

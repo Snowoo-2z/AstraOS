@@ -86,8 +86,13 @@ gui_enter:
 .handle_key:
     call lower_char
     cmp byte [gui_window_open], GUI_WINDOW_NOTES
-    jne .global_key
+    jne .check_terminal_key
     call gui_notepad_handle_key
+    jmp .gui_loop
+.check_terminal_key:
+    cmp byte [gui_window_open], GUI_WINDOW_TERMINAL
+    jne .global_key
+    call gui_terminal_handle_key
     jmp .gui_loop
 
 .global_key:
@@ -99,6 +104,12 @@ gui_enter:
     je .close_window
     cmp al, 'e'
     je .open_explorer
+    cmp al, 't'
+    je .open_terminal_key
+    cmp al, 'n'
+    je .open_notes_key
+    cmp al, 'm'
+    je .open_system_key
     cmp al, 'r'
     je .gui_loop
 
@@ -113,8 +124,24 @@ gui_enter:
     call gui_open_hovered_file
     jmp .gui_loop
 
+.open_terminal_key:
+    mov byte [gui_menu_open], 0
+    mov byte [gui_minimized_window], GUI_WINDOW_NONE
+    mov byte [gui_window_open], GUI_WINDOW_TERMINAL
+    jmp .gui_loop
+.open_notes_key:
+    mov byte [gui_menu_open], 0
+    mov byte [gui_minimized_window], GUI_WINDOW_NONE
+    mov byte [gui_window_open], GUI_WINDOW_NOTES
+    jmp .gui_loop
+.open_system_key:
+    mov byte [gui_menu_open], 0
+    mov byte [gui_minimized_window], GUI_WINDOW_NONE
+    mov byte [gui_window_open], GUI_WINDOW_SYSTEM
+    jmp .gui_loop
 .open_explorer:
     mov byte [gui_menu_open], 0
+    mov byte [gui_minimized_window], GUI_WINDOW_NONE
     mov byte [gui_window_open], GUI_WINDOW_FILES
     jmp .gui_loop
 
@@ -172,6 +199,125 @@ gui_notepad_handle_key:
 .close:
     mov byte [gui_window_open], GUI_WINDOW_NONE
 .done:
+    popa
+    ret
+
+gui_terminal_handle_key:
+    pusha
+    cmp al, 27
+    je .close
+    cmp al, 8
+    je .backspace
+    cmp al, 127
+    je .backspace
+    cmp al, 13
+    je .execute
+    cmp al, 10
+    je .execute
+    cmp al, 32
+    jb .done
+    cmp al, 126
+    ja .done
+
+    movzx ebx, byte [gui_terminal_len]
+    cmp ebx, GUI_TERMINAL_MAX
+    jae .done
+    mov [gui_terminal_buffer + ebx], al
+    inc ebx
+    mov byte [gui_terminal_buffer + ebx], 0
+    mov [gui_terminal_len], bl
+    jmp .done
+
+.backspace:
+    movzx ebx, byte [gui_terminal_len]
+    cmp ebx, 0
+    je .done
+    dec ebx
+    mov byte [gui_terminal_buffer + ebx], 0
+    mov [gui_terminal_len], bl
+    jmp .done
+.execute:
+    call gui_terminal_execute
+    jmp .done
+.close:
+    mov byte [gui_window_open], GUI_WINDOW_NONE
+.done:
+    popa
+    ret
+
+gui_terminal_execute:
+    pusha
+    cmp byte [gui_terminal_len], 0
+    je .clear_line
+
+    mov esi, gui_terminal_buffer
+    mov edi, cmd_help
+    call string_equals
+    cmp eax, 1
+    je .help
+    mov esi, gui_terminal_buffer
+    mov edi, cmd_version
+    call string_equals
+    cmp eax, 1
+    je .version
+    mov esi, gui_terminal_buffer
+    mov edi, cmd_uptime
+    call string_equals
+    cmp eax, 1
+    je .uptime
+    mov esi, gui_terminal_buffer
+    mov edi, cmd_ls
+    call string_equals
+    cmp eax, 1
+    je .files
+    mov esi, gui_terminal_buffer
+    mov edi, cmd_mem
+    call string_equals
+    cmp eax, 1
+    je .memory
+    mov esi, gui_terminal_buffer
+    mov edi, cmd_about
+    call string_equals
+    cmp eax, 1
+    je .about
+    mov esi, gui_terminal_buffer
+    mov edi, cmd_clear
+    call string_equals
+    cmp eax, 1
+    je .clear_output
+    mov esi, gui_terminal_buffer
+    mov edi, cmd_reboot
+    call string_equals
+    cmp eax, 1
+    je .reboot
+    mov byte [gui_terminal_output], 7
+    jmp .clear_line
+.help:
+    mov byte [gui_terminal_output], 1
+    jmp .clear_line
+.version:
+    mov byte [gui_terminal_output], 2
+    jmp .clear_line
+.uptime:
+    mov byte [gui_terminal_output], 3
+    jmp .clear_line
+.files:
+    mov byte [gui_terminal_output], 4
+    jmp .clear_line
+.memory:
+    mov byte [gui_terminal_output], 5
+    jmp .clear_line
+.about:
+    mov byte [gui_terminal_output], 6
+    jmp .clear_line
+.clear_output:
+    mov byte [gui_terminal_output], 8
+    jmp .clear_line
+.reboot:
+    call reboot_system
+.clear_line:
+    mov byte [gui_terminal_len], 0
+    mov byte [gui_terminal_buffer], 0
     popa
     ret
 
@@ -262,12 +408,14 @@ gui_activate_hover:
     cmp byte [gui_hover], 10
     je .open_files
     cmp byte [gui_hover], 11
-    je .open_system
+    je .open_terminal
     cmp byte [gui_hover], 12
-    je .open_notes
+    je .open_system
     cmp byte [gui_hover], 13
-    je .open_about
+    je .open_notes
     cmp byte [gui_hover], 14
+    je .open_about
+    cmp byte [gui_hover], 18
     je .reboot
     jmp .done
 
@@ -291,6 +439,8 @@ gui_activate_hover:
     je .open_system
     cmp byte [gui_hover], 4
     je .open_notes
+    cmp byte [gui_hover], 5
+    je .open_terminal
     jmp .done
 
 .files:
@@ -345,6 +495,10 @@ gui_activate_hover:
     mov byte [gui_minimized_window], GUI_WINDOW_NONE
     mov byte [gui_window_open], GUI_WINDOW_SYSTEM
     jmp .done
+.open_terminal:
+    mov byte [gui_minimized_window], GUI_WINDOW_NONE
+    mov byte [gui_window_open], GUI_WINDOW_TERMINAL
+    jmp .done
 .open_notes:
     mov byte [gui_minimized_window], GUI_WINDOW_NONE
     mov byte [gui_window_open], GUI_WINDOW_NOTES
@@ -392,39 +546,46 @@ gui_update_hover:
     cmp eax, 114
     ja .done
     mov eax, [mouse_y]
-    cmp eax, 74
+    cmp eax, 52
     jb .done
-    cmp eax, 91
+    cmp eax, 69
     jbe .menu_files
-    cmp eax, 95
+    cmp eax, 73
     jb .done
-    cmp eax, 112
+    cmp eax, 90
+    jbe .menu_terminal
+    cmp eax, 94
+    jb .done
+    cmp eax, 111
     jbe .menu_system
-    cmp eax, 116
+    cmp eax, 115
     jb .done
-    cmp eax, 133
+    cmp eax, 132
     jbe .menu_notes
-    cmp eax, 137
+    cmp eax, 136
     jb .done
-    cmp eax, 154
+    cmp eax, 153
     jbe .menu_about
     cmp eax, 157
     jb .done
     cmp eax, 174
     ja .done
-    mov byte [gui_hover], 14
+    mov byte [gui_hover], 18
     jmp .done
 .menu_files:
     mov byte [gui_hover], 10
     jmp .done
-.menu_system:
+.menu_terminal:
     mov byte [gui_hover], 11
     jmp .done
-.menu_notes:
+.menu_system:
     mov byte [gui_hover], 12
     jmp .done
-.menu_about:
+.menu_notes:
     mov byte [gui_hover], 13
+    jmp .done
+.menu_about:
+    mov byte [gui_hover], 14
     jmp .done
 
 .window:
@@ -586,13 +747,22 @@ gui_update_hover:
     cmp eax, 88
     jb .done
     cmp eax, 146
-    ja .done
+    ja .desktop_third
     cmp bl, 0
     jne .desktop_notes
     mov byte [gui_hover], 3
     jmp .done
 .desktop_notes:
     mov byte [gui_hover], 4
+    jmp .done
+.desktop_third:
+    cmp bl, 0
+    jne .done
+    cmp eax, 166
+    jb .done
+    cmp eax, 224
+    ja .done
+    mov byte [gui_hover], 5
     jmp .done
 .desktop_left:
     mov al, bl
@@ -696,6 +866,12 @@ gui_render_desktop:
     mov esi, gui_notes_label
     call gfx_draw_desktop_icon
 
+    mov al, 5
+    mov ebx, 174
+    mov ecx, 38
+    mov esi, gui_terminal_label
+    call gfx_draw_desktop_icon
+
     call gui_draw_taskbar
 
     cmp byte [gui_window_open], GUI_WINDOW_FILES
@@ -706,6 +882,8 @@ gui_render_desktop:
     je .system
     cmp byte [gui_window_open], GUI_WINDOW_NOTES
     je .notes
+    cmp byte [gui_window_open], GUI_WINDOW_TERMINAL
+    je .terminal
     jmp .finish
 .files:
     call gui_draw_files_window
@@ -718,6 +896,9 @@ gui_render_desktop:
     jmp .finish
 .notes:
     call gui_draw_notepad_window
+    jmp .finish
+.terminal:
+    call gui_draw_terminal_window
 
 .finish:
     cmp byte [gui_menu_open], 1
@@ -912,8 +1093,13 @@ gui_draw_taskbar:
     jmp .task_window_label
 .task_check_notes:
     cmp byte [gui_minimized_window], GUI_WINDOW_NOTES
-    jne .task_window_label
+    jne .task_check_terminal
     mov esi, gui_notes_label
+    jmp .task_window_label
+.task_check_terminal:
+    cmp byte [gui_minimized_window], GUI_WINDOW_TERMINAL
+    jne .task_window_label
+    mov esi, gui_terminal_label
 .task_window_label:
     mov ebx, 78
     mov ecx, 186
@@ -921,24 +1107,18 @@ gui_draw_taskbar:
     call gfx_draw_text
 
 .clock:
-    mov esi, gui_task_uptime
-    mov ebx, 255
+    call rtc_read_time
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    mov dword [rect_x], 274
+    mov dword [rect_y], 188
+    mov dword [rect_w], 3
+    mov dword [rect_h], 3
+    call gfx_fill_rect
+    mov esi, gui_clock_text
+    mov ebx, 282
     mov ecx, 186
-    mov dl, GUI_COLOR_MUTED
+    mov dl, GUI_COLOR_TEXT
     call gfx_draw_text
-
-    mov eax, [timer_ticks]
-    xor edx, edx
-    mov ebx, PIT_FREQUENCY_HZ
-    div ebx
-    xor edx, edx
-    mov ebx, 10000
-    div ebx
-    mov eax, edx             ; show the last four uptime seconds
-    mov ebx, 272
-    mov ecx, 186
-    mov dl, 15
-    call gfx_draw_uint
     popa
     ret
 
@@ -947,46 +1127,50 @@ gui_draw_start_menu:
     ; Shadow and panel above the taskbar.
     mov byte [rect_color], GUI_COLOR_BORDER
     mov dword [rect_x], 8
-    mov dword [rect_y], 56
+    mov dword [rect_y], 34
     mov dword [rect_w], 110
-    mov dword [rect_h], 118
+    mov dword [rect_h], 140
     call gfx_fill_rect
     mov byte [rect_color], GUI_COLOR_SURFACE
     mov dword [rect_x], 4
-    mov dword [rect_y], 52
+    mov dword [rect_y], 30
     mov dword [rect_w], 110
-    mov dword [rect_h], 123
+    mov dword [rect_h], 145
     call gfx_fill_rect
     mov byte [rect_color], GUI_COLOR_ACCENT_DARK
     mov dword [rect_x], 4
-    mov dword [rect_y], 52
+    mov dword [rect_y], 30
     mov dword [rect_w], 110
     mov dword [rect_h], 18
     call gfx_fill_rect
 
     mov esi, gui_menu_title
     mov ebx, 10
-    mov ecx, 58
-    mov dl, 15
+    mov ecx, 36
+    mov dl, GUI_COLOR_TEXT
     call gfx_draw_text
 
     mov al, 10
-    mov ecx, 74
+    mov ecx, 52
     mov esi, gui_menu_files
     call gui_draw_menu_item
     mov al, 11
-    mov ecx, 95
-    mov esi, gui_menu_system
+    mov ecx, 73
+    mov esi, gui_menu_terminal
     call gui_draw_menu_item
     mov al, 12
-    mov ecx, 116
-    mov esi, gui_menu_notes
+    mov ecx, 94
+    mov esi, gui_menu_system
     call gui_draw_menu_item
     mov al, 13
-    mov ecx, 137
-    mov esi, gui_menu_about
+    mov ecx, 115
+    mov esi, gui_menu_notes
     call gui_draw_menu_item
     mov al, 14
+    mov ecx, 136
+    mov esi, gui_menu_about
+    call gui_draw_menu_item
+    mov al, 18
     mov ecx, 157
     mov esi, gui_menu_reboot
     call gui_draw_menu_item
@@ -1053,6 +1237,8 @@ gfx_draw_desktop_icon:
     je .about
     cmp byte [gui_icon_index], 3
     je .monitor
+    cmp byte [gui_icon_index], 5
+    je .terminal
     jmp .note
 
 .folder:
@@ -1193,6 +1379,35 @@ gfx_draw_desktop_icon:
     call gfx_fill_rect
     add dword [rect_y], 6
     mov dword [rect_w], 12
+    call gfx_fill_rect
+    jmp .label
+
+.terminal:
+    mov byte [rect_color], GUI_COLOR_CARD
+    mov eax, [gui_icon_x]
+    add eax, 2
+    mov [rect_x], eax
+    mov eax, [gui_icon_y]
+    add eax, 3
+    mov [rect_y], eax
+    mov dword [rect_w], 38
+    mov dword [rect_h], 28
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_BG
+    add dword [rect_x], 3
+    add dword [rect_y], 3
+    mov dword [rect_w], 32
+    mov dword [rect_h], 20
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    add dword [rect_x], 5
+    add dword [rect_y], 5
+    mov dword [rect_w], 7
+    mov dword [rect_h], 2
+    call gfx_fill_rect
+    add dword [rect_x], 6
+    add dword [rect_y], 4
+    mov dword [rect_w], 9
     call gfx_fill_rect
 
 .label:
@@ -1467,6 +1682,177 @@ gui_draw_notepad_window:
     mov dl, 8
     call gfx_draw_text
     popa
+    ret
+
+gui_draw_terminal_window:
+    pusha
+    call gui_draw_window_frame
+
+    mov esi, gui_terminal_title
+    mov ebx, [gui_window_x]
+    add ebx, 12
+    mov ecx, [gui_window_y]
+    add ecx, 8
+    mov dl, GUI_COLOR_TEXT
+    call gfx_draw_text
+
+    mov byte [rect_color], GUI_COLOR_ACCENT_DARK
+    mov eax, [gui_window_x]
+    add eax, 9
+    mov [rect_x], eax
+    mov eax, [gui_window_y]
+    add eax, 29
+    mov [rect_y], eax
+    mov dword [rect_w], 220
+    mov dword [rect_h], 112
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_BG
+    add dword [rect_x], 2
+    add dword [rect_y], 2
+    mov dword [rect_w], 216
+    mov dword [rect_h], 108
+    call gfx_fill_rect
+
+    cmp byte [gui_terminal_output], 0
+    je .welcome
+    cmp byte [gui_terminal_output], 1
+    je .help
+    cmp byte [gui_terminal_output], 2
+    je .version
+    cmp byte [gui_terminal_output], 3
+    je .uptime
+    cmp byte [gui_terminal_output], 4
+    je .files
+    cmp byte [gui_terminal_output], 5
+    je .memory
+    cmp byte [gui_terminal_output], 6
+    je .about
+    cmp byte [gui_terminal_output], 7
+    je .unknown
+    jmp .prompt
+
+.welcome:
+    mov esi, gui_terminal_welcome1
+    mov dl, GUI_COLOR_ACCENT
+    call gui_terminal_draw_line1
+    mov esi, gui_terminal_welcome2
+    mov dl, GUI_COLOR_MUTED
+    call gui_terminal_draw_line2
+    jmp .prompt
+.help:
+    mov esi, gui_terminal_help1
+    mov dl, GUI_COLOR_TEXT
+    call gui_terminal_draw_line1
+    mov esi, gui_terminal_help2
+    call gui_terminal_draw_line2
+    jmp .prompt
+.version:
+    mov esi, gui_terminal_version
+    mov dl, GUI_COLOR_ACCENT
+    call gui_terminal_draw_line1
+    jmp .prompt
+.files:
+    mov esi, gui_terminal_files1
+    mov dl, GUI_COLOR_TEXT
+    call gui_terminal_draw_line1
+    mov esi, gui_terminal_files2
+    mov dl, GUI_COLOR_MUTED
+    call gui_terminal_draw_line2
+    jmp .prompt
+.about:
+    mov esi, gui_terminal_about1
+    mov dl, GUI_COLOR_TEXT
+    call gui_terminal_draw_line1
+    mov esi, gui_terminal_about2
+    mov dl, GUI_COLOR_MUTED
+    call gui_terminal_draw_line2
+    jmp .prompt
+.unknown:
+    mov esi, gui_terminal_unknown
+    mov dl, GUI_COLOR_DANGER
+    call gui_terminal_draw_line1
+    jmp .prompt
+.uptime:
+    mov esi, gui_terminal_uptime
+    mov dl, GUI_COLOR_TEXT
+    call gui_terminal_draw_line1
+    mov eax, [timer_ticks]
+    xor edx, edx
+    mov ebx, PIT_FREQUENCY_HZ
+    div ebx
+    mov ebx, [gui_window_x]
+    add ebx, 150
+    mov ecx, [gui_window_y]
+    add ecx, 43
+    mov dl, GUI_COLOR_ACCENT
+    call gfx_draw_uint
+    jmp .prompt
+.memory:
+    mov esi, gui_terminal_heap
+    mov dl, GUI_COLOR_TEXT
+    call gui_terminal_draw_line1
+    mov eax, [heap_next]
+    sub eax, HEAP_START
+    mov ebx, [gui_window_x]
+    add ebx, 150
+    mov ecx, [gui_window_y]
+    add ecx, 43
+    mov dl, GUI_COLOR_ACCENT
+    call gfx_draw_uint
+
+.prompt:
+    mov esi, gui_terminal_prompt
+    mov ebx, [gui_window_x]
+    add ebx, 18
+    mov ecx, [gui_window_y]
+    add ecx, 105
+    mov dl, GUI_COLOR_ACCENT
+    call gfx_draw_text
+    mov esi, gui_terminal_buffer
+    mov ebx, [gui_window_x]
+    add ebx, 58
+    mov ecx, [gui_window_y]
+    add ecx, 105
+    mov dl, GUI_COLOR_TEXT
+    call gfx_draw_text
+
+    movzx eax, byte [gui_terminal_len]
+    imul eax, 6
+    add eax, [gui_window_x]
+    add eax, 58
+    mov [rect_x], eax
+    mov eax, [gui_window_y]
+    add eax, 104
+    mov [rect_y], eax
+    mov dword [rect_w], 2
+    mov dword [rect_h], 9
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    call gfx_fill_rect
+
+    mov esi, gui_terminal_hint
+    mov ebx, [gui_window_x]
+    add ebx, 18
+    mov ecx, [gui_window_y]
+    add ecx, 126
+    mov dl, GUI_COLOR_MUTED
+    call gfx_draw_text
+    popa
+    ret
+
+gui_terminal_draw_line1:
+    mov ebx, [gui_window_x]
+    add ebx, 18
+    mov ecx, [gui_window_y]
+    add ecx, 43
+    call gfx_draw_text
+    ret
+
+gui_terminal_draw_line2:
+    mov ebx, [gui_window_x]
+    add ebx, 18
+    mov ecx, [gui_window_y]
+    add ecx, 58
+    call gfx_draw_text
     ret
 
 gui_draw_window_frame:

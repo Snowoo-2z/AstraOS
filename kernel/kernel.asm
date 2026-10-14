@@ -96,6 +96,7 @@ kernel_entry:
 %include "kernel/core/memory.asm"
 %include "kernel/core/interrupts.asm"
 %include "kernel/drivers/input.asm"
+%include "kernel/drivers/rtc.asm"
 %include "kernel/drivers/text.asm"
 %include "kernel/ui/gui.asm"
 %include "kernel/ui/explorer.asm"

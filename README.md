@@ -54,7 +54,7 @@ make run-headless
 
 ## ✅ État actuel
 
-AstraOS **0.2.1 Fluid** démarre maintenant avec :
+AstraOS **0.3.0 Terminal** démarre maintenant avec :
 
 - un **bootloader 16-bit** de 512 octets ;
 - un passage en **32-bit protected mode** ;
@@ -74,9 +74,9 @@ AstraOS **0.2.1 Fluid** démarre maintenant avec :
 - le bureau graphique **Aurora**, avec palette VGA personnalisée noir/bleu/blanc ;
 - un écran de démarrage graphique, des icônes différenciées et un curseur redessiné ;
 - un rendu souris optimisé par zone sale de `12x13` pixels au lieu de redessiner tout l'écran ;
-- un **menu Astra** avec Files, System, Notepad, About et Reboot ;
-- un bloc-notes graphique RAM et un moniteur système en direct ;
-- un compteur d'uptime dans la barre des tâches ;
+- un **menu Astra** avec Files, Terminal, System, Notepad, About et Reboot ;
+- un terminal graphique interactif, un bloc-notes RAM et un moniteur système en direct ;
+- une vraie horloge `HH:MM` lue depuis le RTC CMOS dans la barre des tâches ;
 - un **explorateur de fichiers** avec 8 fichiers RAM et souris absolue QEMU VMMouse ;
 - un assistant `ai` local basé sur des règles ;
 - des infos souris via IRQ12 ;
@@ -196,12 +196,13 @@ fichiers
 - icône **ABOUT** : ouvre les informations d'AstraOS ;
 - icône **SYSTEM** : affiche uptime, timer, IRQ clavier, souris et heap ;
 - icône **NOTES** : ouvre un bloc-notes RAM éditable ;
-- bouton **ASTRA** : ouvre un menu avec Files, System, Notepad, About et Reboot ;
+- icône **TERMINAL** : ouvre une ligne de commande graphique ;
+- bouton **ASTRA** : ouvre un menu avec Files, Terminal, System, Notepad, About et Reboot ;
 - fenêtres déplaçables en maintenant le clic sur leur barre de titre ;
 - boutons `-`, `*` et `X` pour réduire, agrandir/restaurer et fermer ;
 - fenêtre réduite récupérable depuis la barre des tâches ;
 - explorateur sur deux rangées avec `readme`, `roadmap`, `ai`, `license`, `system`, `commands`, `notes` et `credits` ;
-- compteur d'uptime dans la barre des tâches monochrome.
+- horloge matérielle `HH:MM` dans la barre des tâches Aurora.
 
 Contrôles graphiques :
 
@@ -210,6 +211,9 @@ Souris      Déplacer le pointeur
 Clic gauche Ouvrir une icône ou fermer une fenêtre
 Clic + glisser Déplacer une fenêtre par sa barre de titre
 e           Ouvrir la fenêtre Files
+t           Ouvrir Terminal
+n           Ouvrir Notepad
+m           Ouvrir System Monitor
 1 à 8       Ouvrir directement un fichier
 Échap       Fermer la fenêtre active
 c           Recentrer le curseur AstraOS
@@ -218,6 +222,21 @@ q           Redémarrer pour revenir au shell texte
 ```
 
 Dans **Notepad**, tape simplement au clavier. `Retour arrière` efface et `Échap` ferme la fenêtre. La note reste en RAM et devient visible dans le fichier `notes` de l'explorateur jusqu'au prochain redémarrage.
+
+Dans **Terminal**, les commandes graphiques disponibles sont :
+
+```txt
+help
+version
+uptime
+ls
+mem
+about
+clear
+reboot
+```
+
+`Entrée` exécute, `Retour arrière` corrige et `Échap` ferme Terminal. Les lettres `q`, `e`, `t`, `n` et `m` sont du texte normal tant que Terminal ou Notepad est actif.
 
 Tu peux vérifier la souris avec :
 
@@ -233,7 +252,7 @@ Dans QEMU, clique dans la fenêtre pour capturer la souris. Selon l'interface QE
 
 Le rendu graphique utilise un backbuffer en RAM avant de copier l'image vers la VRAM. Pour un simple déplacement, AstraOS restaure uniquement l'ancien rectangle du curseur (`12x13` pixels) puis dessine sa nouvelle position directement en VRAM : le bureau complet de 64 000 pixels n'est plus reconstruit à chaque paquet souris. La commande `mouse` indique `absolute VMMouse` lorsque la synchronisation hôte fonctionne. Si elle indique `relative PS/2 fallback`, AstraOS continue de fonctionner mais la position peut être moins naturelle.
 
-Pour l'instant, le bureau et son mini gestionnaire de fenêtres sont dessinés directement par le kernel. L'explorateur parcourt le système de fichiers RAM intégré. VMMouse fournit les coordonnées absolues via le port hyperviseur, tandis que l'IRQ12 PS/2 signale les événements et reste disponible en secours. Le mode graphique reste volontairement léger : VGA mode 13h, fenêtres dessinées à la main et curseur logiciel. Les prochaines étapes seront le terminal graphique, un vrai stockage disque, le focus multi-fenêtres et davantage d'applications.
+Pour l'instant, le bureau et son mini gestionnaire de fenêtres sont dessinés directement par le kernel. L'explorateur parcourt le système de fichiers RAM intégré. VMMouse fournit les coordonnées absolues via le port hyperviseur, tandis que l'IRQ12 PS/2 signale les événements et reste disponible en secours. Le mode graphique reste volontairement léger : VGA mode 13h, fenêtres dessinées à la main et curseur logiciel. Les prochaines étapes seront un vrai stockage disque, le focus multi-fenêtres, une calculatrice graphique et davantage d'applications.
 
 ---
 

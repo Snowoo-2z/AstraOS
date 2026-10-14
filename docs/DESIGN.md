@@ -35,7 +35,7 @@ Les autres index sont réservés aux futurs états succès, avertissement et th�
 - Grand symbole `A` géométrique dessiné par le kernel.
 - Deux colonnes de cartes d'applications.
 - Barre des tâches de 22 pixels.
-- Bouton Astra bleu, applications réduites au centre et uptime à droite.
+- Bouton Astra bleu, applications réduites au centre et horloge RTC `HH:MM` à droite.
 
 ## Fenêtres
 
@@ -54,6 +54,7 @@ Chaque application doit avoir une silhouette reconnaissable sans texte :
 - **About** : fiche avec symbole information.
 - **System** : écran avec graphe en barres.
 - **Notes** : feuille avec lignes bleues.
+- **Terminal** : écran sombre avec invite et curseur Aurora.
 
 Les fichiers utilisent une carte document avec bordure, en-tête Aurora et lignes de contenu.
 

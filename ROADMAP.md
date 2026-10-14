@@ -86,7 +86,7 @@ Cette liste garde le développement concret, progressif et testable. Une case co
 - [x] Clavier PS/2
 - [x] Souris PS/2
 - [x] VMMouse absolue
-- [ ] RTC pour date et heure réelles
+- [x] RTC CMOS pour l'heure réelle dans la barre des tâches
 - [ ] PCI : énumération des périphériques
 - [ ] ACPI : extinction propre
 - [ ] VBE framebuffer
@@ -103,7 +103,7 @@ Cette liste garde le développement concret, progressif et testable. Une case co
 - [x] Explorateur Files
 - [x] Fenêtre About
 - [ ] Menu Astra
-- [ ] Terminal graphique
+- [x] Terminal graphique interactif avec commandes intégrées
 - [x] Bloc-notes RAM graphique minimal
 - [ ] Calculatrice
 - [x] Moniteur système graphique en direct
