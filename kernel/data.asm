@@ -18,6 +18,13 @@ mmap_index dd 0
 mmap_remaining dd 0
 mmap_ptr dd 0
 gfx_target dd GUI_BACKBUFFER
+gui_last_clock_tick dd 0
+gui_window_x dd 70
+gui_window_y dd 18
+gui_drag_offset_x dd 0
+gui_drag_offset_y dd 0
+gfx_number_x dd 0
+gfx_number_y dd 0
 rect_x dd 0
 rect_y dd 0
 rect_w dd 0
@@ -45,6 +52,8 @@ vmmouse_enabled db 0
 vmmouse_read_budget db 0
 gui_hover db GUI_HOVER_NONE
 gui_window_open db GUI_WINDOW_NONE
+gui_menu_open db 0
+gui_window_dragging db 0
 gui_icon_index db 0
 rect_color db 0
 text_color db 0
@@ -56,6 +65,7 @@ explorer_exit db 0
 kbd_head db 0
 kbd_tail db 0
 dec_buffer times 11 db 0
+gfx_number_buffer times 11 db 0
 cpu_vendor times 13 db 0
 mouse_packet times 3 db 0
 kbd_buffer times KBD_BUFFER_SIZE db 0
@@ -87,7 +97,7 @@ cmd_desktop db 'desktop', 0
 
 banner:
     db '========================================', 10
-    db ' AstraOS 0.0.9 Absolute', 10
+    db ' AstraOS 0.1.0 Workspace', 10
     db ' 32-bit protected mode kernel', 10
     db ' Open source MIT - black and white', 10
     db ' Keyboard: IRQ1 FR AZERTY by default', 10
@@ -135,7 +145,7 @@ about_text:
     db 'protected mode, starts IRQ-driven input, a timer, memory map,', 10
     db 'paging, a RAM file explorer, and a tiny shell. Light, modular, AI-ready.', 10, 10, 0
 
-version_text db 'AstraOS 0.0.9 Absolute - kernel32', 10, 10, 0
+version_text db 'AstraOS 0.1.0 Workspace - kernel32', 10, 10, 0
 
 mem_header_text db 'Memory status:', 10, 0
 mem_mode_text:
@@ -174,7 +184,7 @@ status_ticks_text db '  ticks   : ', 0
 status_e820_text db '  e820    : ', 0
 status_heap_next_text db '  heap    : ', 0
 status_paging_text db '  paging  : ', 0
-cat_usage_text db 'Usage: cat readme|roadmap|ai|license', 10, 10, 0
+cat_usage_text db 'Usage: cat readme|roadmap|ai|license|system|commands|notes|credits', 10, 10, 0
 cat_not_found_text db 'File not found. Type ls.', 10, 10, 0
 echo_usage_text db 'Usage: echo text', 10, 10, 0
 
@@ -245,12 +255,17 @@ gui_desktop_tagline db 'LIGHT. LOCAL. YOURS.', 0
 gui_files_label db 'FILES', 0
 gui_about_label db 'ABOUT', 0
 gui_start_label db 'ASTRA', 0
-gui_task_status db '32 BIT', 0
+gui_task_uptime db 'UP', 0
+gui_task_seconds db 'S', 0
+gui_menu_title db 'ASTRA MENU', 0
+gui_menu_files db 'FILES', 0
+gui_menu_about db 'ABOUT', 0
+gui_menu_reboot db 'REBOOT', 0
 gui_window_title_text db 'FILES', 0
-gui_files_status db '4 FILES - CLICK TO OPEN', 0
+gui_files_status db '8 RAM FILES', 0
 gui_close_label db 'X', 0
 gui_about_title db 'ABOUT ASTRAOS', 0
-gui_about_line1 db 'ASTRAOS 0.0.9 ABSOLUTE', 0
+gui_about_line1 db 'ASTRAOS 0.1.0 WORKSPACE', 0
 gui_about_line2 db '32 BIT X86 FROM SCRATCH', 0
 gui_about_line3 db 'BLACK WHITE AND LIGHT', 0
 gui_about_line4 db 'OPEN SOURCE MIT', 0
@@ -261,6 +276,10 @@ gui_readme_label db 'README', 0
 gui_roadmap_label db 'ROADMAP', 0
 gui_ai_label db 'AI', 0
 gui_license_label db 'LICENSE', 0
+gui_system_label db 'SYSTEM', 0
+gui_commands_label db 'COMMANDS', 0
+gui_notes_label db 'NOTES', 0
+gui_credits_label db 'CREDITS', 0
 gui_readme_line1 db 'ASTRAOS GRAPHICAL FILE EXPLORER', 0
 gui_readme_line2 db 'MODE 13H 320X200 VGA', 0
 gui_readme_line3 db 'MOUSE DRIVER USES IRQ12', 0
@@ -272,6 +291,18 @@ gui_ai_line2 db 'LOCAL COMMAND HELPER FIRST', 0
 gui_ai_line3 db 'NO HEAVY MODEL IN KERNEL', 0
 gui_license_line1 db 'MIT OPEN SOURCE', 0
 gui_license_line2 db 'SNW 2026', 0
+gui_system_line1 db 'ASTRAOS 0.1.0 WORKSPACE', 0
+gui_system_line2 db '32 BIT X86 KERNEL', 0
+gui_system_line3 db 'VMMOUSE AND VGA ONLINE', 0
+gui_commands_line1 db 'DESKTOP EXPLORER STATUS', 0
+gui_commands_line2 db 'MEM CPU IRQ MOUSE AI', 0
+gui_commands_line3 db 'HELP SHOWS EVERY COMMAND', 0
+gui_notes_line1 db 'RAM NOTES ARE READ ONLY', 0
+gui_notes_line2 db 'TEXT EDITOR IS PLANNED', 0
+gui_notes_line3 db 'PERSISTENCE COMES LATER', 0
+gui_credits_line1 db 'CREATED BY SNW', 0
+gui_credits_line2 db 'NASM MAKE AND QEMU', 0
+gui_credits_line3 db 'OPEN SOURCE MIT', 0
 
 vga_13_regs:
     db 0x63
@@ -348,12 +379,20 @@ fs_name_readme db 'readme', 0
 fs_name_roadmap db 'roadmap', 0
 fs_name_ai db 'ai', 0
 fs_name_license db 'license', 0
+fs_name_system db 'system', 0
+fs_name_commands db 'commands', 0
+fs_name_notes db 'notes', 0
+fs_name_credits db 'credits', 0
 fs_list_text:
     db 'RAM files:', 10
     db '  readme', 10
     db '  roadmap', 10
     db '  ai', 10
-    db '  license', 10, 10, 0
+    db '  license', 10
+    db '  system', 10
+    db '  commands', 10
+    db '  notes', 10
+    db '  credits', 10, 10, 0
 fs_readme_text:
     db 'readme:', 10
     db '  AstraOS is a tiny 32-bit OS base: bootloader, protected mode,', 10
@@ -367,6 +406,22 @@ fs_ai_text:
     db '  AstraAI starts as a local rule helper so the kernel stays tiny.', 10
     db '  It suggests commands without loading a heavy model by default.', 10, 10, 0
 fs_license_text db 'license: MIT open source.', 10, 10, 0
+fs_system_text:
+    db 'system:', 10
+    db '  AstraOS 0.1.0 Workspace, x86 protected mode, 32-bit kernel.', 10
+    db '  VGA desktop, absolute mouse, paging, E820 and 100 Hz timer.', 10, 10, 0
+fs_commands_text:
+    db 'commands:', 10
+    db '  desktop explorer ls cat mouse mem cpu irq status ai reboot', 10
+    db '  Type help in the shell for the complete command list.', 10, 10, 0
+fs_notes_text:
+    db 'notes:', 10
+    db '  This RAM file is read-only for now.', 10
+    db '  A small graphical text editor is planned next.', 10, 10, 0
+fs_credits_text:
+    db 'credits:', 10
+    db '  AstraOS is an open-source learning OS created by Snw.', 10
+    db '  Built from scratch with NASM, Make and QEMU.', 10, 10, 0
 
 unknown_text db 'Unknown command. Type help.', 10, 10, 0
 reboot_text db 'Rebooting AstraOS...', 10, 0

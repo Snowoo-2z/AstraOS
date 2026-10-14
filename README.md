@@ -54,7 +54,7 @@ make run-headless
 
 ## ✅ État actuel
 
-AstraOS **0.0.9 Absolute** démarre maintenant avec :
+AstraOS **0.1.0 Workspace** démarre maintenant avec :
 
 - un **bootloader 16-bit** de 512 octets ;
 - un passage en **32-bit protected mode** ;
@@ -72,7 +72,9 @@ AstraOS **0.0.9 Absolute** démarre maintenant avec :
 - un mini allocateur mémoire type **bump allocator** ;
 - un mini système de fichiers RAM en lecture seule ;
 - un premier **bureau graphique** monochrome avec barre des tâches et fenêtres ;
-- un **explorateur de fichiers** interactif avec souris absolue QEMU VMMouse et secours PS/2 ;
+- un **menu Astra** avec Files, About et Reboot ;
+- un compteur d'uptime dans la barre des tâches ;
+- un **explorateur de fichiers** avec 8 fichiers RAM et souris absolue QEMU VMMouse ;
 - un assistant `ai` local basé sur des règles ;
 - des infos souris via IRQ12 ;
 - des infos CPU via **CPUID** ;
@@ -184,17 +186,20 @@ fichiers
 
 - icône **FILES** : ouvre l'explorateur graphique ;
 - icône **ABOUT** : ouvre les informations d'AstraOS ;
-- bouton **ASTRA** : ouvre la fenêtre Files ;
+- bouton **ASTRA** : ouvre un menu avec Files, About et Reboot ;
+- fenêtres déplaçables en maintenant le clic sur leur barre de titre ;
 - bouton **X** : ferme la fenêtre active ;
-- barre des tâches monochrome en bas de l'écran.
+- explorateur sur deux rangées avec `readme`, `roadmap`, `ai`, `license`, `system`, `commands`, `notes` et `credits` ;
+- compteur d'uptime dans la barre des tâches monochrome.
 
 Contrôles graphiques :
 
 ```txt
 Souris      Déplacer le pointeur
 Clic gauche Ouvrir une icône ou fermer une fenêtre
+Clic + glisser Déplacer une fenêtre par sa barre de titre
 e           Ouvrir la fenêtre Files
-1 à 4       Ouvrir directement un fichier
+1 à 8       Ouvrir directement un fichier
 Échap       Fermer la fenêtre active
 c           Recentrer le curseur AstraOS
 b / Entrée  Retour depuis le lecteur de fichier
@@ -215,7 +220,7 @@ Dans QEMU, clique dans la fenêtre pour capturer la souris. Selon l'interface QE
 
 Le rendu graphique utilise un backbuffer en RAM avant de copier l'image vers la VRAM, ce qui réduit fortement les effets de dessin blanc/flicker. La commande `mouse` indique `absolute VMMouse` lorsque la synchronisation hôte fonctionne. Si elle indique `relative PS/2 fallback`, AstraOS continue de fonctionner mais la position peut être moins naturelle.
 
-Pour l'instant, le bureau et son mini gestionnaire de fenêtres sont dessinés directement par le kernel. L'explorateur parcourt le système de fichiers RAM intégré. VMMouse fournit les coordonnées absolues via le port hyperviseur, tandis que l'IRQ12 PS/2 signale les événements et reste disponible en secours. Le mode graphique reste volontairement léger : VGA mode 13h, fenêtres dessinées à la main et curseur logiciel. Les prochaines étapes seront des fenêtres déplaçables, un vrai stockage disque et davantage d'applications.
+Pour l'instant, le bureau et son mini gestionnaire de fenêtres sont dessinés directement par le kernel. L'explorateur parcourt le système de fichiers RAM intégré. VMMouse fournit les coordonnées absolues via le port hyperviseur, tandis que l'IRQ12 PS/2 signale les événements et reste disponible en secours. Le mode graphique reste volontairement léger : VGA mode 13h, fenêtres dessinées à la main et curseur logiciel. Les prochaines étapes seront la réduction/agrandissement des fenêtres, un vrai stockage disque et davantage d'applications.
 
 ---
 
@@ -257,6 +262,7 @@ kernel/
 Makefile                 Build, image disque et lancement QEMU
 LICENSE                  Licence MIT
 README.md                Documentation du projet
+ROADMAP.md               Grande liste de travail suivie
 ```
 
 Le noyau produit reste un unique binaire léger : NASM assemble les modules avec `%include`. Les fichiers séparés rendent le projet plus lisible et facilitent les prochaines fonctions sans ajouter de coût en RAM.
@@ -279,6 +285,8 @@ Donc la base actuelle est volontairement simple, rapide et compréhensible.
 ---
 
 ## 🗺️ Roadmap
+
+La grande liste de travail détaillée est dans [`ROADMAP.md`](ROADMAP.md). Elle couvre le bureau, le kernel, les pilotes, le stockage, le réseau, la sécurité, AstraAI et les tests.
 
 ### Phase 1 — Base bootable
 

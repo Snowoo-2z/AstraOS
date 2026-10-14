@@ -393,6 +393,30 @@ execute_cat_command:
     cmp eax, 1
     je .license
 
+    mov esi, input_buffer + 4
+    mov edi, fs_name_system
+    call string_equals
+    cmp eax, 1
+    je .system
+
+    mov esi, input_buffer + 4
+    mov edi, fs_name_commands
+    call string_equals
+    cmp eax, 1
+    je .commands
+
+    mov esi, input_buffer + 4
+    mov edi, fs_name_notes
+    call string_equals
+    cmp eax, 1
+    je .notes
+
+    mov esi, input_buffer + 4
+    mov edi, fs_name_credits
+    call string_equals
+    cmp eax, 1
+    je .credits
+
     mov esi, cat_not_found_text
     call print_string
     ret
@@ -411,6 +435,22 @@ execute_cat_command:
     ret
 .license:
     mov esi, fs_license_text
+    call print_string
+    ret
+.system:
+    mov esi, fs_system_text
+    call print_string
+    ret
+.commands:
+    mov esi, fs_commands_text
+    call print_string
+    ret
+.notes:
+    mov esi, fs_notes_text
+    call print_string
+    ret
+.credits:
+    mov esi, fs_credits_text
     call print_string
     ret
 .usage:

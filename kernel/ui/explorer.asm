@@ -110,6 +110,22 @@ render_file_explorer:
     mov esi, fs_name_license
     call explorer_print_item
 
+    mov al, 4
+    mov esi, fs_name_system
+    call explorer_print_item
+
+    mov al, 5
+    mov esi, fs_name_commands
+    call explorer_print_item
+
+    mov al, 6
+    mov esi, fs_name_notes
+    call explorer_print_item
+
+    mov al, 7
+    mov esi, fs_name_credits
+    call explorer_print_item
+
     mov esi, explorer_footer_text
     call print_string
     call render_mouse_cursor
@@ -205,7 +221,15 @@ explorer_open_selected:
     je .roadmap
     cmp byte [explorer_selected], 2
     je .ai
-    jmp .license
+    cmp byte [explorer_selected], 3
+    je .license
+    cmp byte [explorer_selected], 4
+    je .system
+    cmp byte [explorer_selected], 5
+    je .commands
+    cmp byte [explorer_selected], 6
+    je .notes
+    jmp .credits
 
 .readme:
     mov esi, fs_readme_text
@@ -221,6 +245,22 @@ explorer_open_selected:
     jmp .wait
 .license:
     mov esi, fs_license_text
+    call print_string
+    jmp .wait
+.system:
+    mov esi, fs_system_text
+    call print_string
+    jmp .wait
+.commands:
+    mov esi, fs_commands_text
+    call print_string
+    jmp .wait
+.notes:
+    mov esi, fs_notes_text
+    call print_string
+    jmp .wait
+.credits:
+    mov esi, fs_credits_text
     call print_string
 
 .wait:

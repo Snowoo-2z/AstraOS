@@ -20,6 +20,12 @@ gui_enter:
     mov byte [mouse_left_click], 0
     mov byte [mouse_updated], 1
     mov byte [gui_hover], GUI_HOVER_NONE
+    mov byte [gui_menu_open], 0
+    mov byte [gui_window_dragging], 0
+    mov dword [gui_window_x], 70
+    mov dword [gui_window_y], 18
+    mov eax, [timer_ticks]
+    mov [gui_last_clock_tick], eax
 
 .gui_loop:
     call gui_update_hover
@@ -38,10 +44,18 @@ gui_enter:
     jne .mouse_event
 
     hlt
-    jmp .wait_event
+    mov eax, [timer_ticks]
+    sub eax, [gui_last_clock_tick]
+    cmp eax, PIT_FREQUENCY_HZ
+    jb .wait_event
+    mov eax, [timer_ticks]
+    mov [gui_last_clock_tick], eax
+    jmp .gui_loop
 
 .mouse_event:
     mov byte [mouse_updated], 0
+    call gui_update_hover
+    call gui_handle_window_drag
     cmp byte [mouse_left_click], 1
     jne .gui_loop
     mov byte [mouse_left_click], 0
@@ -65,7 +79,7 @@ gui_enter:
     jne .gui_loop
     cmp al, '1'
     jb .gui_loop
-    cmp al, '4'
+    cmp al, '8'
     ja .gui_loop
     sub al, '1'
     mov [gui_hover], al
@@ -73,10 +87,16 @@ gui_enter:
     jmp .gui_loop
 
 .open_explorer:
+    mov byte [gui_menu_open], 0
     mov byte [gui_window_open], GUI_WINDOW_FILES
     jmp .gui_loop
 
 .close_window:
+    cmp byte [gui_menu_open], 1
+    jne .close_active_window
+    mov byte [gui_menu_open], 0
+    jmp .gui_loop
+.close_active_window:
     mov byte [gui_window_open], GUI_WINDOW_NONE
     jmp .gui_loop
 
@@ -91,11 +111,85 @@ gui_enter:
     popa
     ret
 
+gui_handle_window_drag:
+    pusha
+    cmp byte [gui_window_open], GUI_WINDOW_NONE
+    je .stop
+    cmp byte [gui_window_dragging], 1
+    je .move
+    cmp byte [mouse_left_click], 1
+    jne .done
+    cmp byte [gui_hover], 9
+    jne .done
+
+    mov byte [gui_window_dragging], 1
+    mov eax, [mouse_x]
+    sub eax, [gui_window_x]
+    mov [gui_drag_offset_x], eax
+    mov eax, [mouse_y]
+    sub eax, [gui_window_y]
+    mov [gui_drag_offset_y], eax
+    jmp .done
+
+.move:
+    cmp byte [mouse_left_down], 1
+    jne .stop
+
+    mov eax, [mouse_x]
+    sub eax, [gui_drag_offset_x]
+    cmp eax, 0
+    jge .x_max
+    xor eax, eax
+.x_max:
+    cmp eax, 77              ; keep the 5px shadow inside 320px
+    jle .x_ready
+    mov eax, 77
+.x_ready:
+    mov [gui_window_x], eax
+
+    mov eax, [mouse_y]
+    sub eax, [gui_drag_offset_y]
+    cmp eax, 0
+    jge .y_max
+    xor eax, eax
+.y_max:
+    cmp eax, 23              ; keep window shadow above the taskbar
+    jle .y_ready
+    mov eax, 23
+.y_ready:
+    mov [gui_window_y], eax
+    jmp .done
+
+.stop:
+    mov byte [gui_window_dragging], 0
+.done:
+    popa
+    ret
+
 gui_activate_hover:
     pusha
+
+    ; The taskbar button always toggles the Astra menu.
+    cmp byte [gui_hover], 2
+    jne .check_menu
+    xor byte [gui_menu_open], 1
+    jmp .done
+
+.check_menu:
+    cmp byte [gui_menu_open], 1
+    jne .check_target
+    mov byte [gui_menu_open], 0
+    cmp byte [gui_hover], 10
+    je .open_files
+    cmp byte [gui_hover], 11
+    je .open_about
+    cmp byte [gui_hover], 12
+    je .reboot
+    jmp .done
+
+.check_target:
     cmp byte [gui_hover], GUI_HOVER_NONE
     je .done
-
     cmp byte [gui_window_open], GUI_WINDOW_NONE
     je .desktop
     cmp byte [gui_window_open], GUI_WINDOW_FILES
@@ -105,25 +199,22 @@ gui_activate_hover:
     jmp .done
 
 .desktop:
-    cmp byte [gui_hover], 1
-    je .open_about
-    ; FILES icon and ASTRA taskbar button both open the explorer.
     cmp byte [gui_hover], 0
     je .open_files
-    cmp byte [gui_hover], 2
-    je .open_files
+    cmp byte [gui_hover], 1
+    je .open_about
     jmp .done
 
 .files:
-    cmp byte [gui_hover], 4
+    cmp byte [gui_hover], 8
     je .close
-    cmp byte [gui_hover], 4
+    cmp byte [gui_hover], 8
     jae .done
     call gui_open_hovered_file
     jmp .done
 
 .about:
-    cmp byte [gui_hover], 4
+    cmp byte [gui_hover], 8
     je .close
     jmp .done
 
@@ -135,6 +226,9 @@ gui_activate_hover:
     jmp .done
 .close:
     mov byte [gui_window_open], GUI_WINDOW_NONE
+    jmp .done
+.reboot:
+    call reboot_system
 .done:
     popa
     ret
@@ -143,64 +237,162 @@ gui_update_hover:
     pusha
     mov byte [gui_hover], GUI_HOVER_NONE
 
+    ; Start button remains reachable while a window is open.
+    mov eax, [mouse_y]
+    cmp eax, 179
+    jb .menu
+    mov eax, [mouse_x]
+    cmp eax, 4
+    jb .menu
+    cmp eax, 66
+    ja .menu
+    mov byte [gui_hover], 2
+    jmp .done
+
+.menu:
+    cmp byte [gui_menu_open], 1
+    jne .window
+    mov eax, [mouse_x]
+    cmp eax, 4
+    jb .done
+    cmp eax, 114
+    ja .done
+    mov eax, [mouse_y]
+    cmp eax, 114
+    jb .done
+    cmp eax, 132
+    jbe .menu_files
+    cmp eax, 135
+    jb .done
+    cmp eax, 153
+    jbe .menu_about
+    cmp eax, 156
+    jb .done
+    cmp eax, 174
+    ja .done
+    mov byte [gui_hover], 12
+    jmp .done
+.menu_files:
+    mov byte [gui_hover], 10
+    jmp .done
+.menu_about:
+    mov byte [gui_hover], 11
+    jmp .done
+
+.window:
     cmp byte [gui_window_open], GUI_WINDOW_NONE
     je .desktop
 
-    ; Every window has a close button in the same place.
+    ; Close button follows the movable window.
     mov eax, [mouse_y]
-    cmp eax, 20
+    mov edx, [gui_window_y]
+    add edx, 2
+    cmp eax, edx
+    jb .titlebar
+    add edx, 18
+    cmp eax, edx
+    ja .titlebar
+    mov eax, [mouse_x]
+    mov edx, [gui_window_x]
+    add edx, 218
+    cmp eax, edx
+    jb .titlebar
+    add edx, 18
+    cmp eax, edx
+    ja .titlebar
+    mov byte [gui_hover], 8
+    jmp .done
+
+.titlebar:
+    mov eax, [mouse_y]
+    mov edx, [gui_window_y]
+    cmp eax, edx
     jb .window_content
-    cmp eax, 38
+    add edx, 22
+    cmp eax, edx
     ja .window_content
     mov eax, [mouse_x]
-    cmp eax, 288
+    mov edx, [gui_window_x]
+    cmp eax, edx
     jb .window_content
-    cmp eax, 306
+    add edx, 238
+    cmp eax, edx
     ja .window_content
-    mov byte [gui_hover], 4
+    mov byte [gui_hover], 9
     jmp .done
 
 .window_content:
     cmp byte [gui_window_open], GUI_WINDOW_FILES
     jne .done
     mov eax, [mouse_y]
-    cmp eax, 54
+    mov edx, [gui_window_y]
+    add edx, 32
+    cmp eax, edx
     jb .done
-    cmp eax, 126
+    add edx, 55
+    cmp eax, edx
+    jbe .row_zero
+    add edx, 3
+    cmp eax, edx
+    jb .done
+    add edx, 55
+    cmp eax, edx
     ja .done
+    mov byte [gui_icon_index], 4
+    jmp .file_column
+.row_zero:
+    mov byte [gui_icon_index], 0
+
+.file_column:
     mov eax, [mouse_x]
-    cmp eax, 80
+    mov edx, [gui_window_x]
+    add edx, 10
+    cmp eax, edx
     jb .done
-    cmp eax, 132
-    jbe .file0
-    cmp eax, 136
+    add edx, 52
+    cmp eax, edx
+    jbe .column_zero
+    add edx, 4
+    cmp eax, edx
     jb .done
-    cmp eax, 188
-    jbe .file1
-    cmp eax, 192
+    add edx, 52
+    cmp eax, edx
+    jbe .column_one
+    add edx, 4
+    cmp eax, edx
     jb .done
-    cmp eax, 244
-    jbe .file2
-    cmp eax, 248
+    add edx, 52
+    cmp eax, edx
+    jbe .column_two
+    add edx, 4
+    cmp eax, edx
     jb .done
-    cmp eax, 304
+    add edx, 56
+    cmp eax, edx
     ja .done
-    mov byte [gui_hover], 3
+    mov al, [gui_icon_index]
+    add al, 3
+    mov [gui_hover], al
     jmp .done
-.file0:
-    mov byte [gui_hover], 0
+.column_zero:
+    mov al, [gui_icon_index]
+    mov [gui_hover], al
     jmp .done
-.file1:
-    mov byte [gui_hover], 1
+.column_one:
+    mov al, [gui_icon_index]
+    inc al
+    mov [gui_hover], al
     jmp .done
-.file2:
-    mov byte [gui_hover], 2
+.column_two:
+    mov al, [gui_icon_index]
+    add al, 2
+    mov [gui_hover], al
     jmp .done
 
 .desktop:
     mov eax, [mouse_y]
     cmp eax, 30
-    jb .taskbar
+    jb .done
     cmp eax, 90
     ja .desktop_about
     mov eax, [mouse_x]
@@ -214,27 +406,15 @@ gui_update_hover:
 .desktop_about:
     mov eax, [mouse_y]
     cmp eax, 98
-    jb .taskbar
+    jb .done
     cmp eax, 158
-    ja .taskbar
+    ja .done
     mov eax, [mouse_x]
     cmp eax, 10
     jb .done
     cmp eax, 68
     ja .done
     mov byte [gui_hover], 1
-    jmp .done
-
-.taskbar:
-    mov eax, [mouse_y]
-    cmp eax, 179
-    jb .done
-    mov eax, [mouse_x]
-    cmp eax, 4
-    jb .done
-    cmp eax, 66
-    ja .done
-    mov byte [gui_hover], 2
 .done:
     popa
     ret
@@ -295,6 +475,10 @@ gui_render_desktop:
     call gui_draw_about_window
 
 .finish:
+    cmp byte [gui_menu_open], 1
+    jne .draw_cursor
+    call gui_draw_start_menu
+.draw_cursor:
     call gfx_draw_cursor
     call gfx_present
     popa
@@ -310,10 +494,11 @@ gui_draw_taskbar:
     call gfx_fill_rect
 
     mov byte [rect_color], 15
-    cmp byte [gui_window_open], GUI_WINDOW_NONE
-    jne .button_ready
     cmp byte [gui_hover], 2
+    je .button_active
+    cmp byte [gui_menu_open], 1
     jne .button_ready
+.button_active:
     mov byte [rect_color], 7
 .button_ready:
     mov dword [rect_x], 4
@@ -328,10 +513,92 @@ gui_draw_taskbar:
     mov dl, 0
     call gfx_draw_text
 
-    mov esi, gui_task_status
-    mov ebx, 265
+    mov esi, gui_task_uptime
+    mov ebx, 255
     mov ecx, 186
     mov dl, 15
+    call gfx_draw_text
+
+    mov eax, [timer_ticks]
+    xor edx, edx
+    mov ebx, PIT_FREQUENCY_HZ
+    div ebx
+    xor edx, edx
+    mov ebx, 10000
+    div ebx
+    mov eax, edx             ; show the last four uptime seconds
+    mov ebx, 272
+    mov ecx, 186
+    mov dl, 15
+    call gfx_draw_uint
+    popa
+    ret
+
+gui_draw_start_menu:
+    pusha
+    ; Shadow and panel above the taskbar.
+    mov byte [rect_color], 8
+    mov dword [rect_x], 8
+    mov dword [rect_y], 99
+    mov dword [rect_w], 110
+    mov dword [rect_h], 79
+    call gfx_fill_rect
+    mov byte [rect_color], 15
+    mov dword [rect_x], 4
+    mov dword [rect_y], 95
+    mov dword [rect_w], 110
+    mov dword [rect_h], 79
+    call gfx_fill_rect
+    mov byte [rect_color], 0
+    mov dword [rect_x], 4
+    mov dword [rect_y], 95
+    mov dword [rect_w], 110
+    mov dword [rect_h], 17
+    call gfx_fill_rect
+
+    mov esi, gui_menu_title
+    mov ebx, 10
+    mov ecx, 100
+    mov dl, 15
+    call gfx_draw_text
+
+    mov al, 10
+    mov ecx, 114
+    mov esi, gui_menu_files
+    call gui_draw_menu_item
+    mov al, 11
+    mov ecx, 135
+    mov esi, gui_menu_about
+    call gui_draw_menu_item
+    mov al, 12
+    mov ecx, 156
+    mov esi, gui_menu_reboot
+    call gui_draw_menu_item
+    popa
+    ret
+
+; al = hover id, ecx = item y, esi = label
+gui_draw_menu_item:
+    pusha
+    mov [gui_icon_index], al
+    mov [gui_icon_y], ecx
+    mov [gui_icon_label], esi
+    mov byte [rect_color], 15
+    cmp al, [gui_hover]
+    jne .background_ready
+    mov byte [rect_color], 7
+.background_ready:
+    mov dword [rect_x], 8
+    mov eax, [gui_icon_y]
+    mov [rect_y], eax
+    mov dword [rect_w], 102
+    mov dword [rect_h], 18
+    call gfx_fill_rect
+    mov esi, [gui_icon_label]
+    mov ebx, 14
+    mov ecx, [gui_icon_y]
+    add ecx, 6
+    mov dl, 0
     call gfx_draw_text
     popa
     ret
@@ -394,36 +661,59 @@ gui_draw_files_window:
     call gui_draw_window_frame
 
     mov esi, gui_window_title_text
-    mov ebx, 82
-    mov ecx, 26
+    mov ebx, [gui_window_x]
+    add ebx, 12
+    mov ecx, [gui_window_y]
+    add ecx, 8
     mov dl, 15
     call gfx_draw_text
 
+    mov ebx, [gui_window_x]
+    add ebx, 14
+    mov ecx, [gui_window_y]
+    add ecx, 48
     mov al, 0
-    mov ebx, 84
-    mov ecx, 66
     mov esi, gui_readme_label
     call gfx_draw_file_icon
+    add ebx, 56
     mov al, 1
-    mov ebx, 140
-    mov ecx, 66
     mov esi, gui_roadmap_label
     call gfx_draw_file_icon
+    add ebx, 56
     mov al, 2
-    mov ebx, 196
-    mov ecx, 66
     mov esi, gui_ai_label
     call gfx_draw_file_icon
+    add ebx, 56
     mov al, 3
-    mov ebx, 252
-    mov ecx, 66
     mov esi, gui_license_label
     call gfx_draw_file_icon
 
+    mov ebx, [gui_window_x]
+    add ebx, 14
+    mov ecx, [gui_window_y]
+    add ecx, 98
+    mov al, 4
+    mov esi, gui_system_label
+    call gfx_draw_file_icon
+    add ebx, 56
+    mov al, 5
+    mov esi, gui_commands_label
+    call gfx_draw_file_icon
+    add ebx, 56
+    mov al, 6
+    mov esi, gui_notes_label
+    call gfx_draw_file_icon
+    add ebx, 56
+    mov al, 7
+    mov esi, gui_credits_label
+    call gfx_draw_file_icon
+
     mov esi, gui_files_status
-    mov ebx, 84
-    mov ecx, 146
-    mov dl, 8
+    mov ebx, [gui_window_x]
+    add ebx, 120
+    mov ecx, [gui_window_y]
+    add ecx, 8
+    mov dl, 7
     call gfx_draw_text
     popa
     ret
@@ -433,27 +723,33 @@ gui_draw_about_window:
     call gui_draw_window_frame
 
     mov esi, gui_about_title
-    mov ebx, 82
-    mov ecx, 26
+    mov ebx, [gui_window_x]
+    add ebx, 12
+    mov ecx, [gui_window_y]
+    add ecx, 8
     mov dl, 15
     call gfx_draw_text
 
-    mov esi, gui_about_line1
-    mov ebx, 88
-    mov ecx, 58
+    mov ebx, [gui_window_x]
+    add ebx, 18
+    mov ecx, [gui_window_y]
+    add ecx, 40
     mov dl, 0
+    mov esi, gui_about_line1
     call gfx_draw_text
+    add ecx, 16
     mov esi, gui_about_line2
-    mov ecx, 74
     call gfx_draw_text
+    add ecx, 16
     mov esi, gui_about_line3
-    mov ecx, 90
     call gfx_draw_text
+    add ecx, 16
     mov esi, gui_about_line4
-    mov ecx, 106
     call gfx_draw_text
+
     mov esi, gui_about_hint
-    mov ecx, 140
+    mov ecx, [gui_window_y]
+    add ecx, 122
     mov dl, 8
     call gfx_draw_text
     popa
@@ -463,40 +759,49 @@ gui_draw_window_frame:
     pusha
     ; Shadow.
     mov byte [rect_color], 8
-    mov dword [rect_x], 75
-    mov dword [rect_y], 23
-    mov dword [rect_w], 237
-    mov dword [rect_h], 149
+    mov eax, [gui_window_x]
+    add eax, 5
+    mov [rect_x], eax
+    mov eax, [gui_window_y]
+    add eax, 5
+    mov [rect_y], eax
+    mov dword [rect_w], 238
+    mov dword [rect_h], 150
     call gfx_fill_rect
 
     ; White client area and black title bar.
     mov byte [rect_color], 15
-    mov dword [rect_x], 70
-    mov dword [rect_y], 18
+    mov eax, [gui_window_x]
+    mov [rect_x], eax
+    mov eax, [gui_window_y]
+    mov [rect_y], eax
     mov dword [rect_w], 238
     mov dword [rect_h], 150
     call gfx_fill_rect
     mov byte [rect_color], 0
-    mov dword [rect_x], 70
-    mov dword [rect_y], 18
-    mov dword [rect_w], 238
     mov dword [rect_h], 22
     call gfx_fill_rect
 
     ; Close button.
     mov byte [rect_color], 15
-    cmp byte [gui_hover], 4
+    cmp byte [gui_hover], 8
     jne .close_ready
     mov byte [rect_color], 7
 .close_ready:
-    mov dword [rect_x], 290
-    mov dword [rect_y], 22
+    mov eax, [gui_window_x]
+    add eax, 220
+    mov [rect_x], eax
+    mov eax, [gui_window_y]
+    add eax, 4
+    mov [rect_y], eax
     mov dword [rect_w], 14
     mov dword [rect_h], 14
     call gfx_fill_rect
     mov esi, gui_close_label
-    mov ebx, 295
-    mov ecx, 25
+    mov ebx, [gui_window_x]
+    add ebx, 225
+    mov ecx, [gui_window_y]
+    add ecx, 7
     mov dl, 0
     call gfx_draw_text
     popa
@@ -617,7 +922,15 @@ gui_render_viewer:
     je .roadmap
     cmp byte [gui_hover], 2
     je .ai
-    jmp .license
+    cmp byte [gui_hover], 3
+    je .license
+    cmp byte [gui_hover], 4
+    je .system
+    cmp byte [gui_hover], 5
+    je .commands
+    cmp byte [gui_hover], 6
+    je .notes
+    jmp .credits
 
 .readme:
     mov esi, gui_readme_line1
@@ -669,6 +982,62 @@ gui_render_viewer:
     call gfx_draw_text
     mov esi, gui_license_line2
     mov ecx, 62
+    call gfx_draw_text
+    jmp .footer
+
+.system:
+    mov esi, gui_system_line1
+    mov ebx, 24
+    mov ecx, 50
+    mov dl, 0
+    call gfx_draw_text
+    mov esi, gui_system_line2
+    mov ecx, 62
+    call gfx_draw_text
+    mov esi, gui_system_line3
+    mov ecx, 74
+    call gfx_draw_text
+    jmp .footer
+
+.commands:
+    mov esi, gui_commands_line1
+    mov ebx, 24
+    mov ecx, 50
+    mov dl, 0
+    call gfx_draw_text
+    mov esi, gui_commands_line2
+    mov ecx, 62
+    call gfx_draw_text
+    mov esi, gui_commands_line3
+    mov ecx, 74
+    call gfx_draw_text
+    jmp .footer
+
+.notes:
+    mov esi, gui_notes_line1
+    mov ebx, 24
+    mov ecx, 50
+    mov dl, 0
+    call gfx_draw_text
+    mov esi, gui_notes_line2
+    mov ecx, 62
+    call gfx_draw_text
+    mov esi, gui_notes_line3
+    mov ecx, 74
+    call gfx_draw_text
+    jmp .footer
+
+.credits:
+    mov esi, gui_credits_line1
+    mov ebx, 24
+    mov ecx, 50
+    mov dl, 0
+    call gfx_draw_text
+    mov esi, gui_credits_line2
+    mov ecx, 62
+    call gfx_draw_text
+    mov esi, gui_credits_line3
+    mov ecx, 74
     call gfx_draw_text
 
 .footer:
@@ -836,6 +1205,39 @@ gfx_draw_cursor:
     mov dword [rect_w], 1
     mov dword [rect_h], 5
     call gfx_fill_rect
+    popa
+    ret
+
+; eax = unsigned value, ebx = x, ecx = y, dl = color
+gfx_draw_uint:
+    pusha
+    mov [gfx_number_x], ebx
+    mov [gfx_number_y], ecx
+    mov [text_color], dl
+    mov edi, gfx_number_buffer + 10
+    mov byte [edi], 0
+    dec edi
+    cmp eax, 0
+    jne .convert
+    mov byte [edi], '0'
+    jmp .draw
+.convert:
+    mov ebp, 10
+.next_digit:
+    xor edx, edx
+    div ebp
+    add dl, '0'
+    mov [edi], dl
+    dec edi
+    test eax, eax
+    jnz .next_digit
+    inc edi
+.draw:
+    mov esi, edi
+    mov ebx, [gfx_number_x]
+    mov ecx, [gfx_number_y]
+    mov dl, [text_color]
+    call gfx_draw_text
     popa
     ret
 
