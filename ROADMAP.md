@@ -11,11 +11,13 @@ Cette liste garde le développement concret, progressif et testable. Une case co
 - [x] Mode graphique VGA 320x200
 - [x] Backbuffer pour limiter le scintillement
 - [x] Premier bureau noir et blanc
+- [x] Démarrage direct sur Aurora en plein écran
+- [x] Image headless séparée conservant le shell texte/série
 - [x] Barre des tâches et bouton Astra
 - [x] Fenêtres Files et About
 - [x] Lecteur de fichiers graphique
 - [x] Menu Astra avec raccourcis Files, About et Reboot
-- [x] Horloge d'uptime dans la barre des tâches
+- [x] Horloge RTC réelle dans la barre des tâches
 - [x] Huit fichiers RAM visibles dans l'explorateur
 - [x] Déplacement des fenêtres à la souris
 - [x] Boutons réduire, restaurer et agrandir
@@ -102,7 +104,7 @@ Cette liste garde le développement concret, progressif et testable. Une case co
 - [x] Bureau graphique
 - [x] Explorateur Files
 - [x] Fenêtre About
-- [ ] Menu Astra
+- [x] Menu Astra
 - [x] Terminal graphique interactif avec commandes intégrées
 - [x] Bloc-notes RAM graphique minimal
 - [ ] Calculatrice

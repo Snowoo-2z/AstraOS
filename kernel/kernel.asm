@@ -22,8 +22,17 @@ kernel_entry:
     call serial_init
     call setup_paging
     call setup_interrupts
-    call clear_screen
 
+%ifndef HEADLESS_BOOT
+    ; The graphical build is a desktop operating system first: Aurora starts
+    ; automatically after the kernel is ready instead of asking the user to
+    ; type a shell command. The dedicated headless image below keeps the
+    ; serial/text shell available for servers, WSL and automated diagnostics.
+    call gui_desktop
+    call reboot_system
+%endif
+
+    call clear_screen
     mov esi, banner
     call print_string
     call print_prompt

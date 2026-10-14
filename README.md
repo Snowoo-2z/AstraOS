@@ -38,10 +38,16 @@ Sur WSL2 / SSH / environnement sans interface graphique :
 git clone https://github.com/Snowoo-2z/AstraOS.git && cd AstraOS && sudo apt update && sudo apt install -y make nasm qemu-system-x86 && make run-headless
 ```
 
-Si tu as déjà cloné le projet :
+Si tu as déjà cloné le projet, cette commande lance directement Aurora en plein écran :
 
 ```bash
 make run
+```
+
+Pour garder AstraOS dans une fenêtre pendant le développement :
+
+```bash
+make run-windowed
 ```
 
 Si tu es en SSH, WSL sans interface graphique, ou environnement headless :
@@ -50,11 +56,13 @@ Si tu es en SSH, WSL sans interface graphique, ou environnement headless :
 make run-headless
 ```
 
+`make run-headless` construit une image dédiée qui démarre dans le shell texte/série. Le bureau graphique normal reste ainsi immédiat sans casser le mode diagnostic.
+
 ---
 
 ## ✅ État actuel
 
-AstraOS **0.3.0 Terminal** démarre maintenant avec :
+AstraOS **0.4.0 Desktop** démarre maintenant avec :
 
 - un **bootloader 16-bit** de 512 octets ;
 - un passage en **32-bit protected mode** ;
@@ -71,7 +79,9 @@ AstraOS **0.3.0 Terminal** démarre maintenant avec :
 - une pagination 32-bit avec identity-map des premiers **4 MiB** ;
 - un mini allocateur mémoire type **bump allocator** ;
 - un mini système de fichiers RAM avec une note éditable ;
-- le bureau graphique **Aurora**, avec palette VGA personnalisée noir/bleu/blanc ;
+- un démarrage direct sur le bureau graphique **Aurora**, sans commande à taper ;
+- une session QEMU **plein écran par défaut**, avec une commande séparée pour le mode fenêtré ;
+- le bureau Aurora avec palette VGA personnalisée noir/bleu/blanc ;
 - un écran de démarrage graphique, des icônes différenciées et un curseur redessiné ;
 - un rendu souris optimisé par zone sale de `12x13` pixels au lieu de redessiner tout l'écran ;
 - un **menu Astra** avec Files, Terminal, System, Notepad, About et Reboot ;
@@ -168,15 +178,15 @@ ai mem   Suggère des commandes selon un sujet
 
 `alloc` n'est pas encore un malloc complet : c'est une première base de gestion mémoire, volontairement simple et prévisible.
 
-### Premier bureau graphique
+### Bureau graphique plein écran
 
-AstraOS possède maintenant le bureau **Aurora** en VGA 320x200 : palette personnalisée, écran de chargement, fond géométrique, cartes d'applications, barre des tâches, menu Astra et fenêtres avec ombres et accent bleu. Les règles visuelles sont documentées dans [`docs/DESIGN.md`](docs/DESIGN.md).
+Le démarrage normal ouvre désormais directement le bureau **Aurora en plein écran** : il n'est plus nécessaire d'arriver dans le shell puis de saisir `desktop`. QEMU occupe l'écran hôte, masque son pointeur et AstraOS affiche immédiatement son écran de chargement, son fond géométrique, ses applications, sa barre des tâches et son menu Astra.
 
-```txt
-desktop
-```
+Le framebuffer interne reste volontairement en VGA 320x200 pour cette étape : QEMU l'agrandit sur tout l'écran, tandis que le prochain chantier graphique sera un framebuffer VBE natif en 640x480 ou davantage. Cette séparation permet d'obtenir dès maintenant une vraie session bureau sans fragiliser le noyau.
 
-Les commandes `gui` et `desktop` ouvrent le bureau. Les commandes suivantes ouvrent directement le bureau avec la fenêtre Files :
+Les règles visuelles sont documentées dans [`docs/DESIGN.md`](docs/DESIGN.md). Pour travailler en mode fenêtré, utilise simplement `make run-windowed`. Dans QEMU, `Ctrl` + `Alt` + `F` permet aussi de basculer entre plein écran et fenêtre.
+
+Le shell texte conserve les commandes `gui` et `desktop` dans l'image headless. Les commandes suivantes ouvrent directement le bureau avec la fenêtre Files :
 
 ```txt
 explorer
@@ -218,7 +228,7 @@ m           Ouvrir System Monitor
 Échap       Fermer la fenêtre active
 c           Recentrer le curseur AstraOS
 b / Entrée  Retour depuis le lecteur de fichier
-q           Redémarrer pour revenir au shell texte
+q           Redémarrer la session graphique
 ```
 
 Dans **Notepad**, tape simplement au clavier. `Retour arrière` efface et `Échap` ferme la fenêtre. La note reste en RAM et devient visible dans le fichier `notes` de l'explorateur jusqu'au prochain redémarrage.
@@ -244,7 +254,7 @@ Tu peux vérifier la souris avec :
 mouse
 ```
 
-Dans QEMU, clique dans la fenêtre pour capturer la souris. Selon l'interface QEMU, `Ctrl` + `Alt` + `G` peut libérer la souris. Le mode graphique est visible avec `make run`; en `make run-headless`, la sortie reste surtout utile pour le shell série.
+Dans QEMU, `Ctrl` + `Alt` + `G` peut libérer la souris et `Ctrl` + `Alt` + `F` bascule le plein écran. Le mode graphique démarre automatiquement avec `make run`; `make run-headless` utilise plutôt l'image dédiée au shell série.
 
 `make run` masque le curseur hôte QEMU avec `-display gtk,show-cursor=off`. AstraOS détecte maintenant le périphérique **VMMouse** fourni par QEMU et reçoit des coordonnées absolues : le curseur AstraOS suit directement la position de la souris Windows, même si la fenêtre QEMU est agrandie. Si VMMouse n'est pas disponible, le driver revient automatiquement au mode PS/2 relatif. Si ton QEMU ne supporte pas GTK, lance avec `make run QEMU_DISPLAY=`.
 

@@ -116,7 +116,7 @@ cmd_desktop db 'desktop', 0
 
 banner:
     db '========================================', 10
-    db ' AstraOS 0.3.0 Terminal', 10
+    db ' AstraOS 0.4.0 Desktop', 10
     db ' 32-bit protected mode kernel', 10
     db ' Open source MIT - black and white', 10
     db ' Keyboard: IRQ1 FR AZERTY by default', 10
@@ -164,7 +164,7 @@ about_text:
     db 'protected mode, starts IRQ-driven input, a timer, memory map,', 10
     db 'paging, a RAM file explorer, and a tiny shell. Light, modular, AI-ready.', 10, 10, 0
 
-version_text db 'AstraOS 0.3.0 Terminal - kernel32', 10, 10, 0
+version_text db 'AstraOS 0.4.0 Desktop - kernel32', 10, 10, 0
 
 mem_header_text db 'Memory status:', 10, 0
 mem_mode_text:
@@ -291,7 +291,7 @@ gui_maximize_label db '*', 0
 gui_minimize_label db '-', 0
 gui_about_title db 'ABOUT ASTRAOS', 0
 gui_about_logo db 'A', 0
-gui_about_line1 db 'ASTRAOS 0.3.0 TERMINAL', 0
+gui_about_line1 db 'ASTRAOS 0.4.0 DESKTOP', 0
 gui_about_line2 db '32 BIT X86 FROM SCRATCH', 0
 gui_about_line3 db 'BLACK WHITE AND LIGHT', 0
 gui_about_line4 db 'OPEN SOURCE MIT', 0
@@ -311,7 +311,7 @@ gui_terminal_welcome1 db 'ASTRA TERMINAL READY', 0
 gui_terminal_welcome2 db 'TYPE HELP FOR COMMANDS', 0
 gui_terminal_help1 db 'HELP VERSION UPTIME LS', 0
 gui_terminal_help2 db 'MEM ABOUT CLEAR REBOOT', 0
-gui_terminal_version db 'ASTRAOS 0.3.0 TERMINAL', 0
+gui_terminal_version db 'ASTRAOS 0.4.0 DESKTOP', 0
 gui_terminal_files1 db 'README ROADMAP AI LICENSE', 0
 gui_terminal_files2 db 'SYSTEM COMMANDS NOTES CREDITS', 0
 gui_terminal_about1 db 'A TINY X86 OS FROM SCRATCH', 0
@@ -341,7 +341,7 @@ gui_ai_line2 db 'LOCAL COMMAND HELPER FIRST', 0
 gui_ai_line3 db 'NO HEAVY MODEL IN KERNEL', 0
 gui_license_line1 db 'MIT OPEN SOURCE', 0
 gui_license_line2 db 'SNW 2026', 0
-gui_system_line1 db 'ASTRAOS 0.3.0 TERMINAL', 0
+gui_system_line1 db 'ASTRAOS 0.4.0 DESKTOP', 0
 gui_system_line2 db '32 BIT X86 KERNEL', 0
 gui_system_line3 db 'VMMOUSE AND VGA ONLINE', 0
 gui_commands_line1 db 'DESKTOP EXPLORER STATUS', 0
@@ -475,7 +475,7 @@ fs_ai_text:
 fs_license_text db 'license: MIT open source.', 10, 10, 0
 fs_system_text:
     db 'system:', 10
-    db '  AstraOS 0.3.0 Terminal, x86 protected mode, 32-bit kernel.', 10
+    db '  AstraOS 0.4.0 Desktop, x86 protected mode, 32-bit kernel.', 10
     db '  VGA desktop, absolute mouse, paging, E820 and 100 Hz timer.', 10, 10, 0
 fs_commands_text:
     db 'commands:', 10

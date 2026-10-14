@@ -31,9 +31,11 @@ Les autres index sont réservés aux futurs états succès, avertissement et th�
 
 ## Bureau
 
+- Aurora est la session normale : le noyau graphique l'ouvre automatiquement après son initialisation.
+- QEMU démarre en plein écran ; `make run-windowed` reste disponible pour le développement.
 - Fond sombre sans texture lourde.
 - Grand symbole `A` géométrique dessiné par le kernel.
-- Deux colonnes de cartes d'applications.
+- Cartes d'applications alignées sur une grille.
 - Barre des tâches de 22 pixels.
 - Bouton Astra bleu, applications réduites au centre et horloge RTC `HH:MM` à droite.
 
