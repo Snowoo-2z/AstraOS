@@ -105,7 +105,7 @@ cmd_desktop db 'desktop', 0
 
 banner:
     db '========================================', 10
-    db ' AstraOS 0.1.2 DeskApps', 10
+    db ' AstraOS 0.2.0 Aurora', 10
     db ' 32-bit protected mode kernel', 10
     db ' Open source MIT - black and white', 10
     db ' Keyboard: IRQ1 FR AZERTY by default', 10
@@ -153,7 +153,7 @@ about_text:
     db 'protected mode, starts IRQ-driven input, a timer, memory map,', 10
     db 'paging, a RAM file explorer, and a tiny shell. Light, modular, AI-ready.', 10, 10, 0
 
-version_text db 'AstraOS 0.1.2 DeskApps - kernel32', 10, 10, 0
+version_text db 'AstraOS 0.2.0 Aurora - kernel32', 10, 10, 0
 
 mem_header_text db 'Memory status:', 10, 0
 mem_mode_text:
@@ -260,6 +260,7 @@ kbd_usage_text db 'Usage: kbd, kbd fr, or kbd us.', 10, 10, 0
 
 gui_desktop_brand db 'ASTRA OS', 0
 gui_desktop_tagline db 'LIGHT. LOCAL. YOURS.', 0
+gui_splash_loading db 'LOADING DESKTOP', 0
 gui_files_label db 'FILES', 0
 gui_about_label db 'ABOUT', 0
 gui_start_label db 'ASTRA', 0
@@ -276,7 +277,8 @@ gui_close_label db 'X', 0
 gui_maximize_label db '*', 0
 gui_minimize_label db '-', 0
 gui_about_title db 'ABOUT ASTRAOS', 0
-gui_about_line1 db 'ASTRAOS 0.1.2 DESKAPPS', 0
+gui_about_logo db 'A', 0
+gui_about_line1 db 'ASTRAOS 0.2.0 AURORA', 0
 gui_about_line2 db '32 BIT X86 FROM SCRATCH', 0
 gui_about_line3 db 'BLACK WHITE AND LIGHT', 0
 gui_about_line4 db 'OPEN SOURCE MIT', 0
@@ -311,7 +313,7 @@ gui_ai_line2 db 'LOCAL COMMAND HELPER FIRST', 0
 gui_ai_line3 db 'NO HEAVY MODEL IN KERNEL', 0
 gui_license_line1 db 'MIT OPEN SOURCE', 0
 gui_license_line2 db 'SNW 2026', 0
-gui_system_line1 db 'ASTRAOS 0.1.2 DESKAPPS', 0
+gui_system_line1 db 'ASTRAOS 0.2.0 AURORA', 0
 gui_system_line2 db '32 BIT X86 KERNEL', 0
 gui_system_line3 db 'VMMOUSE AND VGA ONLINE', 0
 gui_commands_line1 db 'DESKTOP EXPLORER STATUS', 0
@@ -320,6 +322,26 @@ gui_commands_line3 db 'HELP SHOWS EVERY COMMAND', 0
 gui_credits_line1 db 'CREATED BY SNW', 0
 gui_credits_line2 db 'NASM MAKE AND QEMU', 0
 gui_credits_line3 db 'OPEN SOURCE MIT', 0
+
+gui_palette:
+    db 2,3,5       ; 0  background
+    db 5,7,11      ; 1  surface
+    db 4,18,34     ; 2  dark accent
+    db 8,28,45     ; 3  secondary accent
+    db 40,12,15    ; 4  dark danger
+    db 28,18,40    ; 5  purple
+    db 42,30,10    ; 6  amber
+    db 46,49,54    ; 7  card
+    db 13,16,22    ; 8  border
+    db 25,30,39    ; 9  muted
+    db 20,46,32    ; 10 success
+    db 18,43,63    ; 11 Astra blue
+    db 63,22,27    ; 12 danger
+    db 45,34,63    ; 13 violet
+    db 63,51,20    ; 14 warning
+    db 61,62,63    ; 15 foreground
+
+gui_palette_count equ 16
 
 vga_13_regs:
     db 0x63
@@ -425,7 +447,7 @@ fs_ai_text:
 fs_license_text db 'license: MIT open source.', 10, 10, 0
 fs_system_text:
     db 'system:', 10
-    db '  AstraOS 0.1.2 DeskApps, x86 protected mode, 32-bit kernel.', 10
+    db '  AstraOS 0.2.0 Aurora, x86 protected mode, 32-bit kernel.', 10
     db '  VGA desktop, absolute mouse, paging, E820 and 100 Hz timer.', 10, 10, 0
 fs_commands_text:
     db 'commands:', 10

@@ -13,7 +13,9 @@ gui_enter:
     mov [gui_window_open], al
     cli
     call vga_set_mode_13h
+    call vga_set_astra_palette
     sti
+    call gui_show_splash
 
     mov dword [mouse_x], 160
     mov dword [mouse_y], 100
@@ -584,35 +586,76 @@ gui_update_hover:
     popa
     ret
 
-gui_render_desktop:
+gui_show_splash:
     pusha
     mov dword [gfx_target], GUI_BACKBUFFER
-
-    ; Minimal black desktop with a subtle monochrome identity.
-    mov byte [rect_color], 0
+    mov byte [rect_color], GUI_COLOR_BG
     mov dword [rect_x], 0
     mov dword [rect_y], 0
     mov dword [rect_w], 320
     mov dword [rect_h], 200
     call gfx_fill_rect
 
-    mov byte [rect_color], 8
-    mov dword [rect_x], 78
-    mov dword [rect_y], 0
-    mov dword [rect_w], 2
-    mov dword [rect_h], 178
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    mov dword [rect_x], 146
+    mov dword [rect_y], 55
+    mov dword [rect_w], 28
+    mov dword [rect_h], 28
     call gfx_fill_rect
+    mov esi, gui_about_logo
+    mov ebx, 157
+    mov ecx, 66
+    mov dl, GUI_COLOR_TEXT_DARK
+    call gfx_draw_text
 
     mov esi, gui_desktop_brand
-    mov ebx, 232
-    mov ecx, 18
-    mov dl, 8
+    mov ebx, 136
+    mov ecx, 96
+    mov dl, GUI_COLOR_TEXT
     call gfx_draw_text
-    mov esi, gui_desktop_tagline
-    mov ebx, 190
-    mov ecx, 30
-    mov dl, 8
+    mov esi, gui_splash_loading
+    mov ebx, 116
+    mov ecx, 112
+    mov dl, GUI_COLOR_MUTED
     call gfx_draw_text
+
+    mov byte [rect_color], GUI_COLOR_BORDER
+    mov dword [rect_x], 90
+    mov dword [rect_y], 132
+    mov dword [rect_w], 140
+    mov dword [rect_h], 6
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    mov dword [rect_x], 92
+    mov dword [rect_y], 134
+    mov dword [rect_w], 108
+    mov dword [rect_h], 2
+    call gfx_fill_rect
+    call gfx_present
+
+    mov ebx, [timer_ticks]
+    add ebx, 35
+.wait:
+    hlt
+    mov eax, [timer_ticks]
+    cmp eax, ebx
+    jb .wait
+    popa
+    ret
+
+gui_render_desktop:
+    pusha
+    mov dword [gfx_target], GUI_BACKBUFFER
+
+    ; Astra dark wallpaper. The custom VGA palette keeps contrast clean even
+    ; when QEMU scales the original 320x200 framebuffer.
+    mov byte [rect_color], GUI_COLOR_BG
+    mov dword [rect_x], 0
+    mov dword [rect_y], 0
+    mov dword [rect_w], 320
+    mov dword [rect_h], 200
+    call gfx_fill_rect
+    call gui_draw_wallpaper
 
     mov al, 0
     mov ebx, 18
@@ -671,22 +714,104 @@ gui_render_desktop:
     popa
     ret
 
+gui_draw_wallpaper:
+    pusha
+    ; Subtle divider between launch icons and the identity area.
+    mov byte [rect_color], GUI_COLOR_BORDER
+    mov dword [rect_x], 158
+    mov dword [rect_y], 18
+    mov dword [rect_w], 1
+    mov dword [rect_h], 142
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_ACCENT_DARK
+    mov dword [rect_x], 159
+    mov dword [rect_w], 2
+    mov dword [rect_h], 34
+    call gfx_fill_rect
+
+    ; Large geometric Astra A mark.
+    mov dword [glyph_row], 0
+.logo_sides:
+    cmp dword [glyph_row], 68
+    jae .logo_crossbar
+    mov eax, [glyph_row]
+    mov [rect_y], eax
+    add dword [rect_y], 35
+    shr eax, 1
+    mov edx, 248
+    sub edx, eax
+    mov [rect_x], edx
+    mov dword [rect_w], 2
+    mov dword [rect_h], 2
+    mov byte [rect_color], GUI_COLOR_BORDER
+    call gfx_fill_rect
+    mov edx, 248
+    add edx, eax
+    mov [rect_x], edx
+    call gfx_fill_rect
+    inc dword [glyph_row]
+    jmp .logo_sides
+
+.logo_crossbar:
+    mov byte [rect_color], GUI_COLOR_ACCENT_DARK
+    mov dword [rect_x], 228
+    mov dword [rect_y], 82
+    mov dword [rect_w], 41
+    mov dword [rect_h], 3
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    mov dword [rect_x], 246
+    mov dword [rect_y], 34
+    mov dword [rect_w], 5
+    mov dword [rect_h], 3
+    call gfx_fill_rect
+
+    mov esi, gui_desktop_brand
+    mov ebx, 222
+    mov ecx, 119
+    mov dl, GUI_COLOR_TEXT
+    call gfx_draw_text
+    mov esi, gui_desktop_tagline
+    mov ebx, 187
+    mov ecx, 135
+    mov dl, GUI_COLOR_MUTED
+    call gfx_draw_text
+
+    ; Three small status lights complete the wallpaper composition.
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    mov dword [rect_x], 287
+    mov dword [rect_y], 157
+    mov dword [rect_w], 3
+    mov dword [rect_h], 3
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_MUTED
+    mov dword [rect_x], 294
+    mov dword [rect_y], 157
+    call gfx_fill_rect
+    mov dword [rect_x], 301
+    call gfx_fill_rect
+    popa
+    ret
+
 gui_draw_taskbar:
     pusha
-    mov byte [rect_color], 8
+    mov byte [rect_color], GUI_COLOR_SURFACE
     mov dword [rect_x], 0
     mov dword [rect_y], 178
     mov dword [rect_w], 320
     mov dword [rect_h], 22
     call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_ACCENT_DARK
+    mov dword [rect_h], 1
+    call gfx_fill_rect
 
-    mov byte [rect_color], 15
+    mov byte [rect_color], GUI_COLOR_ACCENT
     cmp byte [gui_hover], 2
     je .button_active
     cmp byte [gui_menu_open], 1
     jne .button_ready
 .button_active:
-    mov byte [rect_color], 7
+    mov byte [rect_color], GUI_COLOR_WHITE
 .button_ready:
     mov dword [rect_x], 4
     mov dword [rect_y], 182
@@ -697,15 +822,15 @@ gui_draw_taskbar:
     mov esi, gui_start_label
     mov ebx, 10
     mov ecx, 186
-    mov dl, 0
+    mov dl, GUI_COLOR_TEXT_DARK
     call gfx_draw_text
 
     cmp byte [gui_minimized_window], GUI_WINDOW_NONE
     je .clock
-    mov byte [rect_color], 15
+    mov byte [rect_color], GUI_COLOR_BORDER
     cmp byte [gui_hover], 17
     jne .task_window_color_ready
-    mov byte [rect_color], 7
+    mov byte [rect_color], GUI_COLOR_ACCENT_DARK
 .task_window_color_ready:
     mov dword [rect_x], 72
     mov dword [rect_y], 182
@@ -730,14 +855,14 @@ gui_draw_taskbar:
 .task_window_label:
     mov ebx, 78
     mov ecx, 186
-    mov dl, 0
+    mov dl, GUI_COLOR_TEXT
     call gfx_draw_text
 
 .clock:
     mov esi, gui_task_uptime
     mov ebx, 255
     mov ecx, 186
-    mov dl, 15
+    mov dl, GUI_COLOR_MUTED
     call gfx_draw_text
 
     mov eax, [timer_ticks]
@@ -758,19 +883,19 @@ gui_draw_taskbar:
 gui_draw_start_menu:
     pusha
     ; Shadow and panel above the taskbar.
-    mov byte [rect_color], 8
+    mov byte [rect_color], GUI_COLOR_BORDER
     mov dword [rect_x], 8
     mov dword [rect_y], 56
     mov dword [rect_w], 110
     mov dword [rect_h], 118
     call gfx_fill_rect
-    mov byte [rect_color], 15
+    mov byte [rect_color], GUI_COLOR_SURFACE
     mov dword [rect_x], 4
     mov dword [rect_y], 52
     mov dword [rect_w], 110
     mov dword [rect_h], 123
     call gfx_fill_rect
-    mov byte [rect_color], 0
+    mov byte [rect_color], GUI_COLOR_ACCENT_DARK
     mov dword [rect_x], 4
     mov dword [rect_y], 52
     mov dword [rect_w], 110
@@ -812,10 +937,12 @@ gui_draw_menu_item:
     mov [gui_icon_index], al
     mov [gui_icon_y], ecx
     mov [gui_icon_label], esi
-    mov byte [rect_color], 15
+    mov byte [rect_color], GUI_COLOR_SURFACE
+    mov byte [text_color], GUI_COLOR_TEXT
     cmp al, [gui_hover]
     jne .background_ready
-    mov byte [rect_color], 7
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    mov byte [text_color], GUI_COLOR_TEXT_DARK
 .background_ready:
     mov dword [rect_x], 8
     mov eax, [gui_icon_y]
@@ -827,7 +954,7 @@ gui_draw_menu_item:
     mov ebx, 14
     mov ecx, [gui_icon_y]
     add ecx, 6
-    mov dl, 0
+    mov dl, [text_color]
     call gfx_draw_text
     popa
     ret
@@ -840,11 +967,14 @@ gfx_draw_desktop_icon:
     mov [gui_icon_y], ecx
     mov [gui_icon_label], esi
 
+    ; Every launcher sits on a compact card instead of floating primitives.
+    mov byte [rect_color], GUI_COLOR_SURFACE
     cmp al, [gui_hover]
-    jne .draw_icon
+    jne .card_ready
     cmp byte [gui_window_open], GUI_WINDOW_NONE
-    jne .draw_icon
-    mov byte [rect_color], 8
+    jne .card_ready
+    mov byte [rect_color], GUI_COLOR_ACCENT_DARK
+.card_ready:
     mov eax, [gui_icon_x]
     sub eax, 5
     mov [rect_x], eax
@@ -855,32 +985,160 @@ gfx_draw_desktop_icon:
     mov dword [rect_h], 57
     call gfx_fill_rect
 
-.draw_icon:
-    mov byte [rect_color], 15
-    mov eax, [gui_icon_x]
-    mov [rect_x], eax
-    mov eax, [gui_icon_y]
-    add eax, 6
-    mov [rect_y], eax
-    mov dword [rect_w], 40
-    mov dword [rect_h], 25
-    call gfx_fill_rect
+    cmp byte [gui_icon_index], 0
+    je .folder
+    cmp byte [gui_icon_index], 1
+    je .about
+    cmp byte [gui_icon_index], 3
+    je .monitor
+    jmp .note
 
-    mov byte [rect_color], 7
+.folder:
+    mov byte [rect_color], GUI_COLOR_CARD
     mov eax, [gui_icon_x]
     add eax, 3
     mov [rect_x], eax
     mov eax, [gui_icon_y]
+    add eax, 8
+    mov [rect_y], eax
+    mov dword [rect_w], 36
+    mov dword [rect_h], 22
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    mov eax, [gui_icon_x]
+    add eax, 3
+    mov [rect_x], eax
+    mov eax, [gui_icon_y]
+    add eax, 3
+    mov [rect_y], eax
+    mov dword [rect_w], 17
+    mov dword [rect_h], 6
+    call gfx_fill_rect
+    jmp .label
+
+.about:
+    mov byte [rect_color], GUI_COLOR_CARD
+    mov eax, [gui_icon_x]
+    add eax, 9
+    mov [rect_x], eax
+    mov eax, [gui_icon_y]
+    add eax, 2
+    mov [rect_y], eax
+    mov dword [rect_w], 24
+    mov dword [rect_h], 29
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_ACCENT_DARK
+    mov eax, [gui_icon_x]
+    add eax, 19
+    mov [rect_x], eax
+    mov eax, [gui_icon_y]
+    add eax, 7
+    mov [rect_y], eax
+    mov dword [rect_w], 4
+    mov dword [rect_h], 4
+    call gfx_fill_rect
+    mov eax, [gui_icon_y]
+    add eax, 14
+    mov [rect_y], eax
+    mov dword [rect_w], 4
+    mov dword [rect_h], 12
+    call gfx_fill_rect
+    jmp .label
+
+.monitor:
+    mov byte [rect_color], GUI_COLOR_CARD
+    mov eax, [gui_icon_x]
+    add eax, 2
+    mov [rect_x], eax
+    mov eax, [gui_icon_y]
+    add eax, 3
+    mov [rect_y], eax
+    mov dword [rect_w], 38
+    mov dword [rect_h], 25
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_ACCENT_DARK
+    mov eax, [gui_icon_x]
+    add eax, 5
+    mov [rect_x], eax
+    mov eax, [gui_icon_y]
+    add eax, 6
+    mov [rect_y], eax
+    mov dword [rect_w], 32
+    mov dword [rect_h], 17
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    mov eax, [gui_icon_x]
+    add eax, 9
+    mov [rect_x], eax
+    mov eax, [gui_icon_y]
+    add eax, 16
+    mov [rect_y], eax
+    mov dword [rect_w], 5
+    mov dword [rect_h], 4
+    call gfx_fill_rect
+    mov eax, [gui_icon_x]
+    add eax, 16
+    mov [rect_x], eax
+    mov eax, [gui_icon_y]
+    add eax, 12
+    mov [rect_y], eax
+    mov dword [rect_w], 5
+    mov dword [rect_h], 8
+    call gfx_fill_rect
+    mov eax, [gui_icon_x]
+    add eax, 23
+    mov [rect_x], eax
+    mov eax, [gui_icon_y]
+    add eax, 9
+    mov [rect_y], eax
+    mov dword [rect_w], 5
+    mov dword [rect_h], 11
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_CARD
+    mov eax, [gui_icon_x]
+    add eax, 17
+    mov [rect_x], eax
+    mov eax, [gui_icon_y]
+    add eax, 28
+    mov [rect_y], eax
+    mov dword [rect_w], 9
+    mov dword [rect_h], 3
+    call gfx_fill_rect
+    jmp .label
+
+.note:
+    mov byte [rect_color], GUI_COLOR_CARD
+    mov eax, [gui_icon_x]
+    add eax, 7
+    mov [rect_x], eax
+    mov eax, [gui_icon_y]
+    add eax, 2
+    mov [rect_y], eax
+    mov dword [rect_w], 28
+    mov dword [rect_h], 29
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    mov eax, [gui_icon_x]
+    add eax, 11
+    mov [rect_x], eax
+    mov eax, [gui_icon_y]
+    add eax, 10
     mov [rect_y], eax
     mov dword [rect_w], 18
-    mov dword [rect_h], 7
+    mov dword [rect_h], 2
+    call gfx_fill_rect
+    add dword [rect_y], 6
+    call gfx_fill_rect
+    add dword [rect_y], 6
+    mov dword [rect_w], 12
     call gfx_fill_rect
 
+.label:
     mov esi, [gui_icon_label]
     mov ebx, [gui_icon_x]
     mov ecx, [gui_icon_y]
-    add ecx, 37
-    mov dl, 15
+    add ecx, 39
+    mov dl, GUI_COLOR_TEXT
     call gfx_draw_text
     popa
     ret
@@ -959,11 +1217,29 @@ gui_draw_about_window:
     mov dl, 15
     call gfx_draw_text
 
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    mov eax, [gui_window_x]
+    add eax, 18
+    mov [rect_x], eax
+    mov eax, [gui_window_y]
+    add eax, 42
+    mov [rect_y], eax
+    mov dword [rect_w], 28
+    mov dword [rect_h], 28
+    call gfx_fill_rect
+    mov esi, gui_about_logo
     mov ebx, [gui_window_x]
-    add ebx, 18
+    add ebx, 29
+    mov ecx, [gui_window_y]
+    add ecx, 53
+    mov dl, GUI_COLOR_TEXT_DARK
+    call gfx_draw_text
+
+    mov ebx, [gui_window_x]
+    add ebx, 56
     mov ecx, [gui_window_y]
     add ecx, 40
-    mov dl, 0
+    mov dl, GUI_COLOR_TEXT_DARK
     mov esi, gui_about_line1
     call gfx_draw_text
     add ecx, 16
@@ -993,14 +1269,28 @@ gui_draw_system_window:
     add ebx, 12
     mov ecx, [gui_window_y]
     add ecx, 8
-    mov dl, 15
+    mov dl, GUI_COLOR_TEXT
     call gfx_draw_text
 
+    mov byte [rect_color], GUI_COLOR_CARD
+    mov eax, [gui_window_x]
+    add eax, 12
+    mov [rect_x], eax
+    mov eax, [gui_window_y]
+    add eax, 34
+    mov [rect_y], eax
+    mov dword [rect_w], 214
+    mov dword [rect_h], 102
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    mov dword [rect_w], 3
+    call gfx_fill_rect
+
     mov ebx, [gui_window_x]
-    add ebx, 18
+    add ebx, 20
     mov ecx, [gui_window_y]
     add ecx, 42
-    mov dl, 0
+    mov dl, GUI_COLOR_TEXT_DARK
     mov esi, gui_system_uptime
     call gfx_draw_text
     add ecx, 18
@@ -1024,7 +1314,7 @@ gui_draw_system_window:
     xor edx, edx
     mov edi, PIT_FREQUENCY_HZ
     div edi
-    mov dl, 0
+    mov dl, GUI_COLOR_ACCENT_DARK
     call gfx_draw_uint
 
     add ecx, 18
@@ -1055,7 +1345,7 @@ gui_draw_notepad_window:
     mov dl, 15
     call gfx_draw_text
 
-    mov byte [rect_color], 7
+    mov byte [rect_color], GUI_COLOR_ACCENT_DARK
     mov eax, [gui_window_x]
     add eax, 12
     mov [rect_x], eax
@@ -1064,6 +1354,12 @@ gui_draw_notepad_window:
     mov [rect_y], eax
     mov dword [rect_w], 214
     mov dword [rect_h], 28
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_WHITE
+    add dword [rect_x], 2
+    add dword [rect_y], 2
+    mov dword [rect_w], 210
+    mov dword [rect_h], 24
     call gfx_fill_rect
 
     cmp byte [gui_note_len], 0
@@ -1081,6 +1377,26 @@ gui_draw_notepad_window:
     add ecx, 59
     call gfx_draw_text
 
+    ; One-second caret blink driven by the PIT.
+    mov eax, [timer_ticks]
+    xor edx, edx
+    mov ebx, PIT_FREQUENCY_HZ
+    div ebx
+    test al, 1
+    jnz .hide_caret
+    movzx eax, byte [gui_note_len]
+    imul eax, 6
+    add eax, [gui_window_x]
+    add eax, 18
+    mov [rect_x], eax
+    mov eax, [gui_window_y]
+    add eax, 58
+    mov [rect_y], eax
+    mov dword [rect_w], 2
+    mov dword [rect_h], 10
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    call gfx_fill_rect
+.hide_caret:
     mov esi, gui_notepad_hint
     mov ebx, [gui_window_x]
     add ebx, 18
@@ -1096,7 +1412,7 @@ gui_draw_window_frame:
     ; Shadow is only needed for a floating window.
     cmp byte [gui_window_maximized], 1
     je .body
-    mov byte [rect_color], 8
+    mov byte [rect_color], GUI_COLOR_BORDER
     mov eax, [gui_window_x]
     add eax, 5
     mov [rect_x], eax
@@ -1111,7 +1427,7 @@ gui_draw_window_frame:
 
 .body:
     ; White client area and black title bar.
-    mov byte [rect_color], 15
+    mov byte [rect_color], GUI_COLOR_WHITE
     mov eax, [gui_window_x]
     mov [rect_x], eax
     mov eax, [gui_window_y]
@@ -1121,15 +1437,47 @@ gui_draw_window_frame:
     mov eax, [gui_window_h]
     mov [rect_h], eax
     call gfx_fill_rect
-    mov byte [rect_color], 0
+    mov byte [rect_color], GUI_COLOR_SURFACE
     mov dword [rect_h], 22
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    mov eax, [gui_window_y]
+    add eax, 22
+    mov [rect_y], eax
+    mov dword [rect_h], 2
+    call gfx_fill_rect
+
+    ; One-pixel frame around the client area.
+    mov byte [rect_color], GUI_COLOR_BORDER
+    mov eax, [gui_window_x]
+    mov [rect_x], eax
+    mov eax, [gui_window_y]
+    mov [rect_y], eax
+    mov dword [rect_w], 1
+    mov eax, [gui_window_h]
+    mov [rect_h], eax
+    call gfx_fill_rect
+    mov eax, [gui_window_x]
+    add eax, [gui_window_w]
+    dec eax
+    mov [rect_x], eax
+    call gfx_fill_rect
+    mov eax, [gui_window_x]
+    mov [rect_x], eax
+    mov eax, [gui_window_y]
+    add eax, [gui_window_h]
+    dec eax
+    mov [rect_y], eax
+    mov eax, [gui_window_w]
+    mov [rect_w], eax
+    mov dword [rect_h], 1
     call gfx_fill_rect
 
     ; Minimize button.
-    mov byte [rect_color], 15
+    mov byte [rect_color], GUI_COLOR_BORDER
     cmp byte [gui_hover], 16
     jne .min_color_ready
-    mov byte [rect_color], 7
+    mov byte [rect_color], GUI_COLOR_ACCENT
 .min_color_ready:
     mov eax, [gui_window_x]
     add eax, [gui_window_w]
@@ -1146,14 +1494,14 @@ gui_draw_window_frame:
     add ebx, 5
     mov ecx, [rect_y]
     add ecx, 7
-    mov dl, 0
+    mov dl, GUI_COLOR_TEXT
     call gfx_draw_text
 
     ; Maximize / restore button.
-    mov byte [rect_color], 15
+    mov byte [rect_color], GUI_COLOR_BORDER
     cmp byte [gui_hover], 15
     jne .max_color_ready
-    mov byte [rect_color], 7
+    mov byte [rect_color], GUI_COLOR_ACCENT
 .max_color_ready:
     mov eax, [gui_window_x]
     add eax, [gui_window_w]
@@ -1167,14 +1515,14 @@ gui_draw_window_frame:
     add ebx, 5
     mov ecx, [rect_y]
     add ecx, 5
-    mov dl, 0
+    mov dl, GUI_COLOR_TEXT
     call gfx_draw_text
 
     ; Close button.
-    mov byte [rect_color], 15
+    mov byte [rect_color], GUI_COLOR_BORDER
     cmp byte [gui_hover], 8
     jne .close_ready
-    mov byte [rect_color], 7
+    mov byte [rect_color], GUI_COLOR_DANGER
 .close_ready:
     mov eax, [gui_window_x]
     add eax, [gui_window_w]
@@ -1188,7 +1536,7 @@ gui_draw_window_frame:
     add ebx, 5
     mov ecx, [rect_y]
     add ecx, 3
-    mov dl, 0
+    mov dl, GUI_COLOR_TEXT
     call gfx_draw_text
     popa
     ret
@@ -1201,35 +1549,65 @@ gfx_draw_file_icon:
     mov [gui_icon_y], ecx
     mov [gui_icon_label], esi
 
-    mov byte [rect_color], 7
+    ; Selection card.
+    mov byte [rect_color], GUI_COLOR_WHITE
     cmp al, [gui_hover]
-    jne .color_ok
-    mov byte [rect_color], 8
-.color_ok:
+    jne .card_ready
+    mov byte [rect_color], GUI_COLOR_CARD
+.card_ready:
     mov eax, [gui_icon_x]
     mov [rect_x], eax
     mov eax, [gui_icon_y]
+    sub eax, 9
     mov [rect_y], eax
     mov dword [rect_w], 48
-    mov dword [rect_h], 32
+    mov dword [rect_h], 50
+    call gfx_fill_rect
+    mov al, [gui_icon_index]
+    cmp al, [gui_hover]
+    jne .document
+    ; Hovered documents receive a blue selection rail.
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    mov dword [rect_w], 2
     call gfx_fill_rect
 
-    mov byte [rect_color], 8
+.document:
+    mov byte [rect_color], GUI_COLOR_MUTED
     mov eax, [gui_icon_x]
-    add eax, 4
+    add eax, 11
     mov [rect_x], eax
     mov eax, [gui_icon_y]
-    sub eax, 5
+    sub eax, 6
     mov [rect_y], eax
+    mov dword [rect_w], 26
+    mov dword [rect_h], 29
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_WHITE
+    add dword [rect_x], 2
+    add dword [rect_y], 2
     mov dword [rect_w], 22
-    mov dword [rect_h], 7
+    mov dword [rect_h], 25
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    mov dword [rect_h], 3
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_BORDER
+    add dword [rect_x], 4
+    add dword [rect_y], 7
+    mov dword [rect_w], 14
+    mov dword [rect_h], 2
+    call gfx_fill_rect
+    add dword [rect_y], 5
+    call gfx_fill_rect
+    add dword [rect_y], 5
+    mov dword [rect_w], 9
     call gfx_fill_rect
 
     mov esi, [gui_icon_label]
     mov ebx, [gui_icon_x]
     mov ecx, [gui_icon_y]
-    add ecx, 40
-    mov dl, 0
+    add ecx, 27
+    mov dl, GUI_COLOR_TEXT_DARK
     call gfx_draw_text
     popa
     ret
@@ -1275,25 +1653,36 @@ gui_open_hovered_file:
 gui_render_viewer:
     pusha
     mov dword [gfx_target], GUI_BACKBUFFER
-    mov byte [rect_color], 0
+    mov byte [rect_color], GUI_COLOR_BG
     mov dword [rect_x], 0
     mov dword [rect_y], 0
     mov dword [rect_w], 320
     mov dword [rect_h], 200
     call gfx_fill_rect
 
-    mov byte [rect_color], 15
+    mov byte [rect_color], GUI_COLOR_BORDER
+    mov dword [rect_x], 20
+    mov dword [rect_y], 22
+    mov dword [rect_w], 288
+    mov dword [rect_h], 164
+    call gfx_fill_rect
+
+    mov byte [rect_color], GUI_COLOR_WHITE
     mov dword [rect_x], 16
     mov dword [rect_y], 18
     mov dword [rect_w], 288
     mov dword [rect_h], 164
     call gfx_fill_rect
 
-    mov byte [rect_color], 8
+    mov byte [rect_color], GUI_COLOR_SURFACE
     mov dword [rect_x], 16
     mov dword [rect_y], 18
     mov dword [rect_w], 288
-    mov dword [rect_h], 16
+    mov dword [rect_h], 18
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    mov dword [rect_y], 36
+    mov dword [rect_h], 2
     call gfx_fill_rect
 
     mov esi, gui_viewer_title
@@ -1532,6 +1921,21 @@ vga_set_mode_13h:
     popa
     ret
 
+vga_set_astra_palette:
+    pusha
+    mov dx, 0x3C8
+    xor al, al
+    out dx, al
+    mov esi, gui_palette
+    mov ecx, gui_palette_count * 3
+    mov dx, 0x3C9
+.write_color:
+    lodsb
+    out dx, al
+    loop .write_color
+    popa
+    ret
+
 gfx_fill_rect:
     pusha
     mov dword [rect_row], 0
@@ -1567,12 +1971,33 @@ gfx_present:
 
 gfx_draw_cursor:
     pusha
-    ; Simple software arrow. Drawn into the backbuffer before presenting.
-    mov byte [rect_color], 15
+    ; Drop shadow.
+    mov byte [rect_color], GUI_COLOR_BG
     mov dword [glyph_row], 0
-.arrow_row:
-    cmp dword [glyph_row], 8
-    jae .tail
+.shadow_row:
+    cmp dword [glyph_row], 10
+    jae .outline_start
+    mov eax, [mouse_x]
+    add eax, 2
+    mov [rect_x], eax
+    mov eax, [mouse_y]
+    add eax, [glyph_row]
+    add eax, 2
+    mov [rect_y], eax
+    mov eax, [glyph_row]
+    inc eax
+    mov [rect_w], eax
+    mov dword [rect_h], 1
+    call gfx_fill_rect
+    inc dword [glyph_row]
+    jmp .shadow_row
+
+.outline_start:
+    mov byte [rect_color], GUI_COLOR_BORDER
+    mov dword [glyph_row], 0
+.outline_row:
+    cmp dword [glyph_row], 10
+    jae .inside_start
     mov eax, [mouse_x]
     mov [rect_x], eax
     mov eax, [mouse_y]
@@ -1584,18 +2009,50 @@ gfx_draw_cursor:
     mov dword [rect_h], 1
     call gfx_fill_rect
     inc dword [glyph_row]
-    jmp .arrow_row
+    jmp .outline_row
 
-.tail:
-    mov byte [rect_color], 0
+.inside_start:
+    mov byte [rect_color], GUI_COLOR_WHITE
+    mov dword [glyph_row], 1
+.inside_row:
+    cmp dword [glyph_row], 8
+    jae .tail
     mov eax, [mouse_x]
-    add eax, 1
+    inc eax
     mov [rect_x], eax
     mov eax, [mouse_y]
-    add eax, 2
+    add eax, [glyph_row]
     mov [rect_y], eax
-    mov dword [rect_w], 1
+    mov eax, [glyph_row]
+    mov [rect_w], eax
+    mov dword [rect_h], 1
+    call gfx_fill_rect
+    inc dword [glyph_row]
+    jmp .inside_row
+
+.tail:
+    mov byte [rect_color], GUI_COLOR_BORDER
+    mov eax, [mouse_x]
+    add eax, 3
+    mov [rect_x], eax
+    mov eax, [mouse_y]
+    add eax, 8
+    mov [rect_y], eax
+    mov dword [rect_w], 3
     mov dword [rect_h], 5
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_WHITE
+    inc dword [rect_x]
+    mov dword [rect_w], 1
+    mov dword [rect_h], 4
+    call gfx_fill_rect
+    mov byte [rect_color], GUI_COLOR_ACCENT
+    mov eax, [mouse_x]
+    mov [rect_x], eax
+    mov eax, [mouse_y]
+    mov [rect_y], eax
+    mov dword [rect_w], 2
+    mov dword [rect_h], 2
     call gfx_fill_rect
     popa
     ret

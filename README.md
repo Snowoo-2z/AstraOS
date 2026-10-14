@@ -54,7 +54,7 @@ make run-headless
 
 ## ✅ État actuel
 
-AstraOS **0.1.2 DeskApps** démarre maintenant avec :
+AstraOS **0.2.0 Aurora** démarre maintenant avec :
 
 - un **bootloader 16-bit** de 512 octets ;
 - un passage en **32-bit protected mode** ;
@@ -71,7 +71,8 @@ AstraOS **0.1.2 DeskApps** démarre maintenant avec :
 - une pagination 32-bit avec identity-map des premiers **4 MiB** ;
 - un mini allocateur mémoire type **bump allocator** ;
 - un mini système de fichiers RAM avec une note éditable ;
-- un premier **bureau graphique** monochrome avec barre des tâches et fenêtres ;
+- le bureau graphique **Aurora**, avec palette VGA personnalisée noir/bleu/blanc ;
+- un écran de démarrage graphique, des icônes différenciées et un curseur redessiné ;
 - un **menu Astra** avec Files, System, Notepad, About et Reboot ;
 - un bloc-notes graphique RAM et un moniteur système en direct ;
 - un compteur d'uptime dans la barre des tâches ;
@@ -168,7 +169,7 @@ ai mem   Suggère des commandes selon un sujet
 
 ### Premier bureau graphique
 
-AstraOS possède maintenant un premier bureau VGA 320x200 avec une barre des tâches, un bouton Astra, des icônes et de petites fenêtres :
+AstraOS possède maintenant le bureau **Aurora** en VGA 320x200 : palette personnalisée, écran de chargement, fond géométrique, cartes d'applications, barre des tâches, menu Astra et fenêtres avec ombres et accent bleu. Les règles visuelles sont documentées dans [`docs/DESIGN.md`](docs/DESIGN.md).
 
 ```txt
 desktop
@@ -185,6 +186,11 @@ fichiers
 
 Éléments disponibles sur le bureau :
 
+- écran de chargement **AstraOS Aurora** ;
+- fond sombre avec grand symbole Astra géométrique ;
+- palette VGA programmée directement par le kernel ;
+- cartes avec survol, ombres, accent bleu et icônes propres à chaque application ;
+- nouveau curseur logiciel avec contour, ombre et pointe bleue ;
 - icône **FILES** : ouvre l'explorateur graphique ;
 - icône **ABOUT** : ouvre les informations d'AstraOS ;
 - icône **SYSTEM** : affiche uptime, timer, IRQ clavier, souris et heap ;
@@ -265,6 +271,8 @@ kernel/
   drivers/              Clavier, souris, série et affichage texte
   ui/                   Interface graphique et explorateur
   data.asm              Textes, tables, fontes et données globales
+docs/
+  DESIGN.md             Système de design Aurora et palette VGA
 Makefile                 Build, image disque et lancement QEMU
 LICENSE                  Licence MIT
 README.md                Documentation du projet

@@ -23,6 +23,22 @@ Cette liste garde le développement concret, progressif et testable. Une case co
 - [ ] Retour au shell sans redémarrer
 - [ ] Résolution graphique supérieure via VBE ou GOP
 
+## Design Aurora
+
+- [x] Palette VGA personnalisée noir, bleu et blanc
+- [x] Écran de chargement graphique
+- [x] Fond de bureau géométrique Astra
+- [x] Cartes d'applications avec état de survol
+- [x] Icônes distinctes Files, About, System et Notes
+- [x] Fenêtres avec ombre, barre d'accent et contrôles colorés
+- [x] Explorateur avec cartes de documents
+- [x] Curseur logiciel avec contour et ombre
+- [x] Menu Astra et barre des tâches harmonisés
+- [ ] Police bitmap plus grande avec minuscules et accents
+- [ ] Animations d'ouverture et réduction
+- [ ] Thèmes clair et sombre
+- [ ] Framebuffer haute résolution
+
 ## Noyau
 
 - [x] GDT et protected mode 32-bit
